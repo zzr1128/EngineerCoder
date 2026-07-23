@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: EngineerCoder 1.0\n"
 "Report-Msgid-Bugs-To: zzr4028@163.com\n"
-"POT-Creation-Date: 2026-07-13 17:56+0800\n"
+"POT-Creation-Date: 2026-07-16 19:37+0800\n"
 "PO-Revision-Date: 2026-07-13 17:29+0800\n"
 "Last-Translator: zzr zzr4028@163.com\n"
 "Language: en_US\n"
@@ -14,7 +14,25 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: core/component.py:22
-msgid "example"
-msgstr ""
+#: interface/editor.py:30
+msgid "ui.component.filter"
+msgstr "Search"
+
+#: interface/editor.py:31
+msgid "ui.title_short"
+msgstr "EngineerCoder"
+
+#: interface/editor.py:32
+msgid "ui.component.title"
+msgstr "Components"
+
+#: interface/editor.py:33
+msgid "ui.details.title"
+msgstr "Details"
+
+#~ msgid "core.tu.display"
+#~ msgstr "Translation Unit"
+
+#~ msgid "core.tu.description"
+#~ msgstr "A dependent unit for code generation (usually a source file)."
 

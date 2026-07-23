@@ -1,5 +1,5 @@
-pythonnet == 3.1.0
-PyQt5 == 5.15.11
-PyQt5-Qt5 == 5.15.2
-PyQt5-sip == 12.18.0
-babel == 2.18.0
+pythonnet
+PySide6
+babel
+python-qt5
+multipledispatch

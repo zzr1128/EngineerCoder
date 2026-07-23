@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-07-13 17:56+0800\n"
+"POT-Creation-Date: 2026-07-16 19:37+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,7 +17,19 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: core/component.py:22
-msgid "example"
+#: interface/editor.py:30
+msgid "ui.component.filter"
+msgstr ""
+
+#: interface/editor.py:31
+msgid "ui.title_short"
+msgstr ""
+
+#: interface/editor.py:32
+msgid "ui.component.title"
+msgstr ""
+
+#: interface/editor.py:33
+msgid "ui.details.title"
 msgstr ""
 
