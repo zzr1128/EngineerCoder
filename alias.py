@@ -77,6 +77,59 @@ class SupportsAddSub[U](Protocol):
     def __sub__(self, other: U) -> Self: ...
 
 
+class Serializable(Protocol):
+    def __serialize__(self) -> Any: ...
+
+    @classmethod
+    def __deserialize__(cls, data: Any) -> Any: ...
+
+
+class SerializationError(Exception):
+    pass
+
+
+_SerializableTy = TypeVar('_SerializableTy', bound=Serializable)
+
+
+def serialize(obj: Serializable) -> Any:
+    return obj.__serialize__()
+
+
+def deserialize(cls: typeof[_SerializableTy], data: Any) -> _SerializableTy:
+    return cls.__deserialize__(data)
+
+
+def require_member(ser: IDictionary[string, Any], *keys) -> void:
+    missing = [key for key in keys if key not in ser]
+    if missing:
+        raise SerializationError(f"Missing fields: {', '.join(missing)}")
+
+
+def require_type(obj: Any, tp: type, name: Nullable[string] = null) -> void:
+    if not isinstance(obj, tp):
+        if name is null:
+            name = obj.__name__
+        raise SerializationError(f'Field {name} requires type {tp.__name__}')
+
+
+__singletons: IDictionary[type, object] = {}
+
+
+def singleton(cls: typeof[T]) -> typeof[T]:
+    new: Callable[..., Any] = getattr(cls, '__new__') if hasattr(cls, '__new__') else object.__new__
+
+    def __new(klass, *args, **kwargs):
+        if klass in __singletons:
+            return __singletons[klass]
+        else:
+            obj = new(klass, *args, **kwargs)
+            __singletons[klass] = obj
+            return obj
+
+    setattr(cls, '__new__', __new)
+    return cls
+
+
 class IDisposable(abstract):
     _disposed = False
 
@@ -130,7 +183,15 @@ class Delegate(Generic[P, R]):
 
 # noinspection PyUnusedLocal
 def maybe_unused(*args: Any) -> void:
+    """
+    Mark a variable intentionally unused and remove warnings by static analyzers.
+    :param args: variables that are maybe unused
+    """
     return
+
+
+def unreachable() -> NoReturn:
+    raise RuntimeError('Executing unreachable code')
 
 
 def dispatch_method(*types: typeof[object] | tuple[typeof[object], ...]) -> Callable[[Callable[P, R]], Callable[P, R]]:

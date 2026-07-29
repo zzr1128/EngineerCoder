@@ -1,0 +1,217 @@
+# -*- coding: utf-8 -*-
+
+from dataclasses import dataclass
+
+from alias import *
+from alias import IList
+from core.build import Compiler
+from core.graphics import IComponentGraphics
+from core.meta import SupportedLanguage
+
+
+class IComponentInterface(abstract):
+    """
+    Interface that all components should implement for UI.
+    """
+
+    @pure_virtual
+    def paint(self, graphics: IComponentGraphics) -> void:  # To be overridden
+        raise NotImplementedError
+
+
+@final
+@dataclass
+class ComponentMetadata:
+    """
+    Metadata of a component.
+    """
+    class Delegation:
+        """
+        Delegation of a component.
+        """
+        DelegationValidation = NewType('DelegationValidation', int)
+
+        VALID = DelegationValidation(0)
+        NOT_FOUND = DelegationValidation(1)
+        CONFLICT = DelegationValidation(2)
+
+        def __init__(self):
+            self.data: IDictionary[SupportedLanguage, IList[typeof['ComponentDelegation']]] = {}
+
+        def append(self, lang: SupportedLanguage, delegation: typeof['ComponentDelegation'], /) -> void:
+            if lang not in self.data:
+                self.data[lang] = []
+            else:
+                self.data[lang].append(delegation)
+
+        def valid(self, lang: SupportedLanguage, /) -> Literal[DelegationValidation]:
+            """
+            Check if the delegation is valid for the specified language
+            """
+            if lang not in self.data:
+                return self.NOT_FOUND
+            for delegation in self.data[lang]:
+                if delegation.delegated().languages == lang:
+                    return self.VALID
+            return self.CONFLICT
+
+        def delegated(self, lang: SupportedLanguage, /) -> typeof['ComponentDelegation']:
+            """
+            :param lang: a language
+            :return: the component delegation that supports the specified language
+            """
+            ds = self.data.get(lang, null)
+            assert ds is not null, f'Delegation not found for {lang.name}'
+            assert len(ds) == 1, f'{len(ds)} delegations conflict for {lang.name}'
+            return ds[0]
+
+        def __contains__(self, item) -> bool:
+            return item in self.data
+
+    name: string
+    display_name: string
+    description: string
+    component_type: typeof['Component']
+    languages: IList[SupportedLanguage]
+    delegations: Delegation
+
+    def support_language(self, lang: SupportedLanguage) -> bool:
+        return lang in self.languages or lang in self.delegations
+
+
+ComponentTy = TypeVar('ComponentTy', bound='Component')
+
+
+class Component:
+    """
+    The abstract super class of all components.
+    All non-abstract implementation component should derive from the class.
+    """
+
+    def __new__(cls, *args, **kwargs):
+        if cls.meta() is null:
+            raise TypeError("Component cannot be instantiated for missing meta-data")
+        return super(Component, cls).__new__(cls)
+
+    def __init__(self, parent: Nullable['Component']):
+        self.parent = parent
+
+    def is_root(self) -> bool:
+        return self.parent is null
+
+    @pure_virtual
+    def interface(self) -> IComponentInterface:
+        raise NotImplementedError
+
+    @classmethod
+    @pure_virtual
+    def meta(cls) -> ComponentMetadata:
+        raise NotImplementedError
+
+    @staticmethod
+    def use__interface(cls: T) -> T:
+        """
+        A decorator that use ``_interface`` feature to implement ``interface`` property.
+        """
+        if 'interface' not in cls.__dict__:  # No override for 'interface' in the wrapped class
+            setattr(cls, 'interface', property(lambda self: self._interface))
+        return cls
+
+    @classmethod
+    def impl_use__meta(cls):
+        return cls._meta  # type: ignore
+
+    @staticmethod
+    def use__meta(cls: T) -> T:
+        """
+        A decorator that use ``_meta`` feature to implement ``meta`` class method.
+        """
+        if 'meta' not in cls.__dict__:  # No override for 'meta' in the wrapped class
+            setattr(cls, 'meta', Component.impl_use__meta)
+        return cls
+
+    @pure_virtual
+    def __serialize__(self) -> Any:
+        raise NotImplementedError
+
+    @classmethod
+    @pure_virtual
+    def __deserialize__(cls, data: Any) -> Self:
+        raise NotImplementedError
+
+    @pure_virtual
+    def compile(self, builder: Compiler) -> void:
+        raise NotImplementedError
+
+    def build(self, builder: Compiler) -> void:
+        """
+        Build a component in the specified language
+        :param builder: the compiler object
+
+        If the component has support to the target language, it will be applied;
+        otherwise, search for other components for delegations.
+        """
+        if (lang := builder.config.target_lang) in (meta := self.meta()).languages:
+            self.compile(builder)
+            return
+
+        match meta.delegations.valid(lang):
+            case ComponentMetadata.Delegation.VALID:
+                meta.delegations.delegated(lang).compile(builder)
+                return
+            case ComponentMetadata.Delegation.NOT_FOUND:
+                raise Compiler.BuildError(
+                    Compiler.B1004,
+                    lang.name, meta.name,
+                )
+            case ComponentMetadata.Delegation.CONFLICT:
+                raise Compiler.BuildError(
+                    Compiler.B1005,
+                    lang.name, meta.name,
+                )
+
+        unreachable()
+
+
+@Component.use__meta
+class ComponentDelegation(Generic[T]):
+    """
+    A delegation of a component to another component.
+    """
+
+    @dataclass
+    class DelegationTarget:
+        languages: tuple[SupportedLanguage]
+        component_name: string
+
+        def __iter__(self) -> IEnumerator[tuple[SupportedLanguage] | string]:
+            yield self.languages
+            yield self.component_name
+
+    @classmethod
+    def delegated(cls) -> DelegationTarget:
+        """
+        :return: the languages and the name of delegated component
+        """
+        raise NotImplementedError
+
+    def __init__(self, km, parent: Nullable[Component]):
+        languages, name = self.delegated()  # type: tuple[SupportedLanguage], string
+        self._meta: ComponentMetadata = km.lookup(name)
+        self.component: Component = self._meta.component_type(parent)
+
+    def interface(self) -> IComponentInterface:
+        return self.component.interface()
+
+    def is_root(self) -> bool:
+        return self.component.is_root()
+
+    @classmethod
+    def compile(cls, builder: Compiler) -> void:
+        """
+        Compile the component.
+        :param builder: the compiler context
+        :raise Compiler.CompilationError: raise when errors occur during compilation
+        :raise Compiler.CompilationWarning: raise when warnings are made during compilation
+        """
+        raise NotImplementedError
