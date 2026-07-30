@@ -10,12 +10,22 @@ from core.project import Project
 
 
 @final
-@singleton
 class Environment:
     """
     The environment of the runtime and edition.
     """
     VERSION = Version(0, 1, 0x0_000_0001)
+    # noinspection bad-assignment
+    _instance: 'Environment' = null
+
+    def __new__(cls) -> 'Environment':
+        if cls._instance is null:
+            cls._instance = super(Environment, cls).__new__(cls)
+        return cls._instance
+
+    @classmethod
+    def instance(cls) -> 'Environment':
+        return cls()
 
     class SatisfactionError(enum.IntEnum):
         SATISFIED = 0

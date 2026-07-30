@@ -19,26 +19,29 @@ class WrapMode(enum.IntEnum):
 @final
 class TextMeasure:
     @overload
-    def __init__(self, metrics: QFontMetrics | QFontMetricsF, text: string): ...
+    def __init__(self, metrics: QFontMetrics | QFontMetricsF, text: string, /): ...
 
     @overload
-    def __init__(self, font: QFont, text: string): ...
+    def __init__(self, font: QFont, text: string, /): ...
 
-    def __init__(self, ft: QFontMetrics | QFontMetricsF | QFont, text: string):
+    def __init__(self, ft: QFontMetrics | QFontMetricsF | QFont, text: string, /):
         if isinstance(ft, QFont):
             self.metrics = QFontMetricsF(ft)
         else:
-            self.metrics = ft
+            self.metrics = ft if isinstance(ft, QFontMetricsF) else QFontMetricsF(ft)
         self.text = text
 
+    # noinspection property-definition
     @property
     def width(self) -> int | float:
         return self.metrics.horizontalAdvance(self.text)
 
+    # noinspection property-definition
     @property
     def height(self) -> int | float:
         return self.metrics.height()
 
+    # noinspection property-definition
     @property
     def ascent(self) -> int | float:
         """
@@ -46,6 +49,7 @@ class TextMeasure:
         """
         return self.metrics.ascent()
 
+    # noinspection property-definition
     @property
     def descent(self) -> int | float:
         """
@@ -61,7 +65,7 @@ class TextMeasure:
         :return: bounding rectangle of the box
         """
         if isinstance(self.metrics, QFontMetrics):
-            box = QRect(0, 0, width, 2147483647)
+            box = QRect(0, 0, int(width), 2147483647)
         else:
             box = QRectF(0, 0, width, 1.797693134862315E+308)
         return self.metrics.boundingRect(box, wrapping, self.text)
@@ -154,7 +158,8 @@ class IComponentGraphics:
 
     @overload
     @pure_virtual
-    def draw_text(self, text: string, position: QPoint | QPointF, *,
+    # pyrefly: ignore [inconsistent-overload]
+    def draw_text(self, text: string, position: QPoint | QPointF, /, *,
                   color: QColor, font: QFont, width: int, refresh: bool = False) -> void:
         """
         Paint a text at specified position of the text baseline.
@@ -169,7 +174,8 @@ class IComponentGraphics:
 
     @overload
     @pure_virtual
-    def draw_text(self, text: string, rect: QRect | QRectF, *,
+    # pyrefly: ignore [inconsistent-overload]
+    def draw_text(self, text: string, rect: QRect | QRectF, /, *,
                   color: QColor, font: QFont, width: int, alignment: Qt.AlignmentFlag = Qt.AlignmentFlag.AlignLeft,
                   wrapping: WrapMode = WrapMode.Null, refresh: bool = False) -> void:
         """
@@ -186,7 +192,7 @@ class IComponentGraphics:
         ...
 
     @pure_virtual
-    def draw_text(self, text: string, pos: QPoint | QPointF | QRect | QRectF, *,
+    def draw_text(self, text: string, pos: QPoint | QPointF | QRect | QRectF, /, *,
                   color: QColor, font: QFont, width: int, **kwargs):
         raise NotImplementedError
 
@@ -207,7 +213,7 @@ class IComponentGraphics:
         raise NotImplementedError
 
     @pure_virtual
-    def create_hypertext_edit(self, rect: QRect | QRectF) -> 'hyper_text_edit.HyperTextEdit':
+    def create_hypertext_edit(self, rect: QRect | QRectF) -> '__import__("hyper_text_edit").HyperTextEdit':
         """
         Create a hyper-text edit control at the specified offset relative to the anchor point.
         :param rect: offset position and size
@@ -221,5 +227,15 @@ class IComponentGraphics:
         :param widget: the widget to move
         :param dx: horizonal delta
         :param dy: vertical delta
+        """
+        raise NotImplementedError
+
+    @pure_virtual
+    def relocate_widget(self, widget: QWidget, x: int, y: int) -> void:
+        """
+        Relocate a widget to a specified coordination.
+        :param widget: the widget to relocate
+        :param x: horizonal coordination
+        :param y: vertical coordination
         """
         raise NotImplementedError

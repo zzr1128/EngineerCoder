@@ -28,14 +28,18 @@ class Version:
     def __ge__(self, other: Self) -> bool:
         return self.id >= other.id
 
+    # pyrefly: ignore [bad-override]
+    # noinspection method-overriding
     def __eq__(self, other: Self) -> bool:
         return self.id == other.id
 
+    # pyrefly: ignore [bad-override]
+    # noinspection method-overriding
     def __ne__(self, other: Self) -> bool:
         return self.id != other.id
 
     @staticmethod
-    def satisfy(version: 'Version', lowest: 'Version', highest: 'Version'):
+    def satisfy(version: 'Version', lowest: Nullable['Version'], highest: Nullable['Version']):
         if lowest is not null and version < lowest:
             return False
         if highest is not null and version > highest:
@@ -50,7 +54,7 @@ class Version:
         }
 
     @classmethod
-    def __deserialize__(cls, data: IDictionary[string, int]) -> Self:
+    def __deserialize__(cls, data: IDictionary[string, int]) -> 'Version':
         require_member(data, 'major', 'minor', 'id')
         major = data['major']
         minor = data['minor']
@@ -71,6 +75,8 @@ class SupportedLanguage:
     id: string
     description: Nullable[string]
 
+    # pyrefly: ignore [bad-override]
+    # noinspection method-overriding
     def __eq__(self, other: Self) -> bool:
         return self.id == other.id
 
@@ -92,6 +98,8 @@ class SupportedLanguage:
         id_ = data['id']
         require_type(id_, string, 'id')
         description = data['description']
+        name = NotNull(name)
+        id_ = NotNull(id_)
         if description is not null:
             require_type(description, string)
         return cls(name, id_, description)
@@ -119,7 +127,8 @@ class AuthorInfo:
     @classmethod
     def __deserialize__(cls, data: IDictionary[string, Nullable[string]]) -> Self:
         require_member(data, 'name', 'email', 'remark')
-        name: string = data['name']
+        assert data['name'] is not null, 'Author name cannot be null'
+        name: string = NotNull(data['name'])
         require_type(name, string)
         email: Nullable[string] = data['email']
         if email is not null:

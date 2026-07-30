@@ -86,7 +86,7 @@ class Kit:
         return len(self.components)
 
     @overload
-    def register(self, component: ComponentMetadata) -> void:
+    def register(self, component: ComponentMetadata, /) -> void:
         """
         Register a component to a kit.
         :param component: component to register
@@ -95,21 +95,41 @@ class Kit:
         ...
 
     @overload
-    def register(self, delegation: typeof[ComponentDelegation[ComponentTy]]) -> void:
+    def register(self, component: typeof[Component], /) -> typeof[Component]:
+        """
+        Register a component to a kit.
+        :param component: component type to register
+        :return: the component type itself
+        :except Kit.ComponentExistsError: raise when the component is already registered
+        """
+        ...
+
+    @overload
+    def register(self, delegation: typeof[ComponentDelegation[ComponentTy]], /) -> void:
         """
         Register a component delegation to a kit, store it in the buffer and waiting for flushing.
         :param delegation: delegation to store
         """
         ...
 
-    def register(self, component: ComponentMetadata | typeof[ComponentDelegation[ComponentTy]]) -> void:
+    def register(self, component: ComponentMetadata | typeof[Component] | typeof[ComponentDelegation[ComponentTy]], /) -> void | typeof[Component]:
         if isinstance(component, ComponentMetadata):
             if component.name in self.components:
                 raise Kit.ComponentExistsError(self.meta.name, component.name)
             self.components[component.name] = component
+            return None
         else:  # type: typeof[ComponentDelegation[ComponentTy]]
-            self.delegation_buffer.append(component)
+            # noinspection bad-argument-type
+            if issubclass(component, ComponentDelegation):
+                self.delegation_buffer.append(component)
+                return None
+            elif issubclass(component, Component):
+                self.register(component.meta())
+                return component
+            else:
+                raise TypeError(f'{component.__name__} is not a component')
 
+    # noinspection variance
     def __call__(self, component_type: T) -> T:
         """
         Register a component to a kit by its class.
@@ -119,15 +139,18 @@ class Kit:
         This enables the kit to be used as a decorator.
         """
         if not isinstance(component_type, type):
-            raise TypeError(f'{component_type.__name__} is not a type')
+            raise TypeError(f'{component_type} is not a type')
         if not issubclass(component_type, Component):
             raise TypeError(f'{component_type.__name__} is not a component')
+        # pyrefly: ignore [missing-attribute]
         meta: ComponentMetadata = component_type.meta()
         if not isinstance(meta, ComponentMetadata):
             raise TypeError(f'{component_type.__name__} does not have meta-data')
         if meta.component_type is null:
+            # pyrefly: ignore [bad-assignment]
             meta.component_type = component_type
         self.register(meta)
+        return component_type
 
     def unregister(self, name: string) -> void:
         if name not in self.components:
@@ -137,8 +160,8 @@ class Kit:
     @staticmethod
     def create_empty(meta: KitMetadata) -> 'Kit':
         """
-        Create a kit that has no components using specified meta-data.
-        :param meta: meta-data of the kit
+        Create a kit that has no components using specified metadata.
+        :param meta: metadata of the kit
         :return: a kit object that ``module_key`` field is null
         """
         return Kit(null, meta, [])  # type: ignore
@@ -149,15 +172,15 @@ class Kit:
             'display_name': self.meta.display_name,
             'description': self.meta.description,
             'version': serialize(self.meta.version),
-            'require_lowest': serialize(self.meta.require_lowest),
-            'require_highest': serialize(self.meta.require_highest),
+            'require_lowest': serialize(self.meta.require_lowest) if self.meta.require_lowest is not None else null,
+            'require_highest': serialize(self.meta.require_highest) if self.meta.require_highest is not None else null,
             'dependencies': self.meta.dependencies,
             'authors': [serialize(author) for author in self.meta.authors],
             'external_supports': [serialize(lang) for lang in self.meta.external_supports],
         }
 
     @classmethod
-    def __deserialize__(cls, data: IDictionary[string, Any]) -> IDictionary[string, string | Version]:
+    def __deserialize__(cls, data: IDictionary[string, Any]) -> IDictionary[string, Any]:
         require_member(data, 'name', 'display_name', 'description', 'version', 'require_lowest', 'require_highest',
                        'dependencies', 'authors', 'external_supports')
         name = data['name']
@@ -203,10 +226,15 @@ class Kit:
 
 
 @final
-@singleton
 class KitManager:
     KitModuleId: ClassVar[int] = 1
     KitEntryName: Final[string] = 'kit_entry'  # kit_entry() -> Kit
+    _instance = null
+
+    def __new__(cls) -> Self:
+        if cls._instance is null:
+            cls._instance = super().__new__(cls)
+        return cls._instance
 
     class KitNotFoundError(LookupError):
         def __init__(self, kit_name: string):
@@ -329,8 +357,10 @@ class KitManager:
         :param delegation: type of the delegation
         """
         languages, name = delegation.delegated()  # type: tuple[SupportedLanguage], string
+        # pyrefly: ignore [bad-argument-type]
         comp: ComponentMetadata = self.lookup(name)
         for lang in languages:
+            # pyrefly: ignore [bad-argument-type]
             comp.delegations.append(lang, delegation)
 
     def flush_delegations(self) -> void:
@@ -346,7 +376,7 @@ class KitManager:
 
 
     @overload
-    def create_component(self, parent: Nullable[Component], name: string) -> Component:
+    def create_component(self, parent: Nullable[Component], name: string, /) -> Component:
         """
         Create a component by name.
         :param parent: the parent component
@@ -356,20 +386,21 @@ class KitManager:
         ...
 
     @overload
-    def create_component(self, parent: Nullable[Component], meta: ComponentMetadata) -> Component:
+    def create_component(self, parent: Nullable[Component], meta: ComponentMetadata, /) -> Component:
         """
-        Create a component by meta-data.
+        Create a component by metadata.
         :param parent: the parent component
-        :param meta: meta-data of the component
+        :param meta: metadata of the component
         :return: the component object
         """
         ...
 
-    def create_component(self, parent: Nullable[Component], name_or_meta: string | ComponentMetadata) -> Component:
+    def create_component(self, parent: Nullable[Component], name_or_meta: string | ComponentMetadata, /) -> Component:
         if isinstance(name_or_meta, string):
             meta = self.lookup(name_or_meta)
         else:
             meta = name_or_meta
+        # noinspection unresolved-references
         component = meta.component_type(parent)
         return component
 
@@ -378,7 +409,7 @@ class KitManager:
 
     class KitImportError(KitInternalError):
         EC_FileTypeError = 0x100    # Caused by incorrect path or file types
-        EC_KitMetaError = 0x200     # Error during acquisition or verification of meta-data
+        EC_KitMetaError = 0x200     # Error during acquisition or verification of metadata
         EC_InternalError = 0x500    # Caused by kit internal code
 
         class ErrorCode(IntEnum):
@@ -447,7 +478,7 @@ class KitManager:
         if not callable(kit_entry):
             raise KitManager.KitImportError(KitManager.KitImportError.ErrorCode.KitMetaInvalid, null, f'Kit entry is not callable: {module_name}')
         try:
-            kit = kit_entry()
+            kit = NotNull(kit_entry)()
         except Exception as e:
             raise KitManager.KitImportError(KitManager.KitImportError.ErrorCode.KitRuntimeError, null, f'Kit runtime error: {e}', e)
         if not isinstance(kit, Kit):
