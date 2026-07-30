@@ -14,6 +14,10 @@ class IComponentInterface(abstract):
     Interface that all components should implement for UI.
     """
 
+    def __init__(self, graphics: IComponentGraphics):
+        maybe_unused(graphics)
+        pass
+
     @pure_virtual
     def paint(self, graphics: IComponentGraphics) -> void:  # To be overridden
         raise NotImplementedError
@@ -44,7 +48,7 @@ class ComponentMetadata:
             else:
                 self.data[lang].append(delegation)
 
-        def valid(self, lang: SupportedLanguage, /) -> Literal[DelegationValidation]:
+        def valid(self, lang: SupportedLanguage, /) -> 'DelegationValidation':
             """
             Check if the delegation is valid for the specified language
             """
@@ -60,8 +64,10 @@ class ComponentMetadata:
             :param lang: a language
             :return: the component delegation that supports the specified language
             """
+            # pyrefly: ignore [bad-assignment]
             ds = self.data.get(lang, null)
             assert ds is not null, f'Delegation not found for {lang.name}'
+            ds: IList[typeof[ComponentDelegation]]
             assert len(ds) == 1, f'{len(ds)} delegations conflict for {lang.name}'
             return ds[0]
 
@@ -74,6 +80,18 @@ class ComponentMetadata:
     component_type: typeof['Component']
     languages: IList[SupportedLanguage]
     delegations: Delegation
+
+    @staticmethod
+    def create(name: string, display_name: string, description: string, languages: IList[SupportedLanguage]) -> Callable[[T], T]:
+        def decorator(cls: T):
+            if hasattr(cls, 'meta') and not getattr(cls.meta, '__isabstractmethod__', False):
+                raise TypeError(f'Component "{cls}" already has metadata')
+            meta = ComponentMetadata(name=name, display_name=display_name, description=description,
+                                     component_type=cls,
+                                     languages=languages, delegations=ComponentMetadata.Delegation())
+            setattr(cls, '_meta', meta)
+            return Component.use__meta(cls)
+        return decorator
 
     def support_language(self, lang: SupportedLanguage) -> bool:
         return lang in self.languages or lang in self.delegations
@@ -93,12 +111,13 @@ class Component:
             raise TypeError("Component cannot be instantiated for missing meta-data")
         return super(Component, cls).__new__(cls)
 
-    def __init__(self, parent: Nullable['Component']):
+    def __init__(self, parent: Nullable['Component'], graphics: 'IComponentGraphics'):
         self.parent = parent
 
     def is_root(self) -> bool:
         return self.parent is null
 
+    @property
     @pure_virtual
     def interface(self) -> IComponentInterface:
         raise NotImplementedError
@@ -127,7 +146,7 @@ class Component:
         A decorator that use ``_meta`` feature to implement ``meta`` class method.
         """
         if 'meta' not in cls.__dict__:  # No override for 'meta' in the wrapped class
-            setattr(cls, 'meta', Component.impl_use__meta)
+            setattr(cls, 'meta', cls.impl_use__meta)
         return cls
 
     @pure_virtual
@@ -173,7 +192,6 @@ class Component:
         unreachable()
 
 
-@Component.use__meta
 class ComponentDelegation(Generic[T]):
     """
     A delegation of a component to another component.

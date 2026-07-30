@@ -25,7 +25,7 @@ type IReadOnlyList[T] = collections.abc.Sequence[T]
 type IDictionary[TKey, TValue] = collections.abc.MutableMapping[TKey, TValue]
 type IReadOnlyDictionary[TKey, TValue] = collections.abc.Mapping[TKey, TValue]
 HashSet = set
-type Queue[T] = collections.deque[T]
+type Queue = collections.deque
 type Stack[T] = list[T]
 type Array[T] = list[T]
 type Predicate[T] = Callable[[T], bool]
@@ -57,14 +57,17 @@ def has_value(obj: IValueContainer[T]) -> bool:
 
 
 def minimum(tp: typeof[IValueContainer[T]]) -> IValueContainer[T]:
+    # pyrefly: ignore [bad-return]
     return tp.__minimum__()
 
 
 def maximum(tp: typeof[IValueContainer[T]]) -> IValueContainer[T]:
+    # pyrefly: ignore [bad-return]
     return tp.__maximum__()
 
 
 class SupportsEq(Protocol):
+    # pyrefly: ignore [bad-override]
     def __eq__(self, other: Self) -> bool: ...
 
 
@@ -112,24 +115,6 @@ def require_type(obj: Any, tp: type, name: Nullable[string] = null) -> void:
         raise SerializationError(f'Field {name} requires type {tp.__name__}')
 
 
-__singletons: IDictionary[type, object] = {}
-
-
-def singleton(cls: typeof[T]) -> typeof[T]:
-    new: Callable[..., Any] = getattr(cls, '__new__') if hasattr(cls, '__new__') else object.__new__
-
-    def __new(klass, *args, **kwargs):
-        if klass in __singletons:
-            return __singletons[klass]
-        else:
-            obj = new(klass, *args, **kwargs)
-            __singletons[klass] = obj
-            return obj
-
-    setattr(cls, '__new__', __new)
-    return cls
-
-
 class IDisposable(abstract):
     _disposed = False
 
@@ -174,11 +159,16 @@ class Delegate(Generic[P, R]):
             self.signal.disconnect(callback)
         self.callbacks.remove(callback)
 
-    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R:
+    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R | null:
         return_value = null
         for callback in self.callbacks:
             return_value = callback(*args, **kwargs)
         return return_value
+
+
+def NotNull(obj: Nullable[T]) -> T:
+    assert obj is not null, f'Null reference'
+    return obj
 
 
 # noinspection PyUnusedLocal
@@ -195,10 +185,10 @@ def unreachable() -> NoReturn:
 
 
 def dispatch_method(*types: typeof[object] | tuple[typeof[object], ...]) -> Callable[[Callable[P, R]], Callable[P, R]]:
-    def decorator(func: Callable[P, R]) -> Callable[P, R]:
+    def decorator(func: Callable[P, R]) -> Callable[..., R]:
         disp = dispatch(object, *types)
         wrapped = disp(func)
-        def wrapper(self, *args: P.args, **kwargs: P.kwargs) -> R:
+        def wrapper(self: Any, *args: P.args, **kwargs: P.kwargs) -> R:
             maybe_unused(self)
             return wrapped(*args, **kwargs)
         return wrapper

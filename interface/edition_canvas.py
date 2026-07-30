@@ -3,14 +3,13 @@
 from dataclasses import dataclass
 
 from PySide6.QtCore import Qt, QPoint, QRect, QRectF, QPointF, QLineF
-from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QPainterPath
+from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QPainterPath, QPaintEvent
 from PySide6.QtWidgets import QWidget, QTextEdit, QLineEdit
 
 from alias import *
 from alias import Nullable
-from core.graphics import IComponentGraphics
-from graphics import WrapMode
-from hyper_text_edit import HyperTextEdit
+from core.graphics import IComponentGraphics, WrapMode
+from core.hyper_text_edit import HyperTextEdit
 
 
 class EditionCanvas(QWidget, IComponentGraphics):
@@ -126,6 +125,7 @@ class EditionCanvas(QWidget, IComponentGraphics):
                 if last is null:
                     last = pt
                     continue
+                # noinspection bad-argument-type
                 lines.append(QLineF(last, pt))
                 last = pt
 
@@ -139,8 +139,8 @@ class EditionCanvas(QWidget, IComponentGraphics):
         color: QColor
         font: QFont
         pen_width: int
-        alignment: Nullable[Qt.AlignmentFlag]
-        wrapping: Nullable[WrapMode]
+        alignment: Qt.AlignmentFlag
+        wrapping: WrapMode
 
         def paint(self, painter: QPainter) -> void:
             EditionCanvas.set_pen(painter, self.color, self.pen_width)
@@ -157,6 +157,12 @@ class EditionCanvas(QWidget, IComponentGraphics):
         self.painter: Nullable[QPainter] = null
         self.figures: IList[EditionCanvas.Paintable] = []
 
+    def paintEvent(self, event: QPaintEvent, /) -> null:
+        self.painter = QPainter(self)
+        for figure in self.figures:
+            figure.paint(self.painter)  # type: ignore (not null)
+
+    # noinspection property-definition
     @property
     def _current_anchor(self) -> QPointF:
         if self.stack:
@@ -193,7 +199,7 @@ class EditionCanvas(QWidget, IComponentGraphics):
         """
         Absolute position of a point relative to the anchor.
         """
-        return QPointF(float(self._current_anchor.x() + point.x()), float(self._current_anchor.y() + point.y()))
+        return QPointF((self._current_anchor.x() + point.x()), (self._current_anchor.y() + point.y()))
 
     @final
     def _absolute_rect(self, rect: QRect | QRectF) -> QRectF:
@@ -204,7 +210,7 @@ class EditionCanvas(QWidget, IComponentGraphics):
             rect = QRectF(rect)
         return QRectF(self._absolute_point(rect.topLeft()), rect.size())
 
-    def draw_rect(self, rect: QRect, color: QColor, *,
+    def draw_rect(self, rect: QRectF, color: QColor, *,
                   round_radius: int = IComponentGraphics.NotRounded, refresh: bool = False) -> void:
         """
         Paint a filled rectangle.
@@ -256,8 +262,9 @@ class EditionCanvas(QWidget, IComponentGraphics):
         if refresh:
             self.update()
 
+    # noinspection method-overriding
     @overload
-    def draw_text(self, text: string, position: QPoint | QPointF, *,
+    def draw_text(self, text: string, position: QPoint | QPointF, /, *,
                   color: QColor, font: QFont, width: int, refresh: bool = False) -> void:
         """
         Paint a text at specified position of the text baseline.
@@ -265,8 +272,9 @@ class EditionCanvas(QWidget, IComponentGraphics):
         """
         ...
 
+    # noinspection method-overriding
     @overload
-    def draw_text(self, text: string, rect: QRect | QRectF, *,
+    def draw_text(self, text: string, rect: QRect | QRectF, /, *,
                   color: QColor, font: QFont, width: int, alignment: Qt.AlignmentFlag = Qt.AlignmentFlag.AlignLeft,
                   wrapping: WrapMode = WrapMode.Null, refresh: bool = False) -> void:
         """
@@ -275,10 +283,10 @@ class EditionCanvas(QWidget, IComponentGraphics):
         """
         ...
 
-    def draw_text(self, text: string, pos: QPoint | QPointF | QRect | QRectF, *, color: QColor, font: QFont, width: int,
+    def draw_text(self, text: string, pos: QPoint | QPointF | QRect | QRectF, /, *, color: QColor, font: QFont, width: int,
                   refresh: bool = False, **kwargs):
         if isinstance(pos, (QPoint, QPointF)):  # draw_text(text, position, *, color, font, width[, refresh])
-            self.figures.append(EditionCanvas.Text(self._absolute_point(pos), text, color, font, width, null, null))
+            self.figures.append(EditionCanvas.Text(self._absolute_point(pos), text, color, font, width, Qt.AlignmentFlag.AlignLeft, WrapMode.Null))
         else:  # draw_text(text, rect, *, color, font, width[, alignment][, wrapping][, refresh])
             alignment = kwargs.get('alignment', Qt.AlignmentFlag.AlignLeft)
             wrapping = kwargs.get('wrapping', WrapMode.Null)
@@ -328,6 +336,13 @@ class EditionCanvas(QWidget, IComponentGraphics):
         See IComponentGraphics.move_widget(widget, dx, dy).
         """
         widget.move(widget.x() + dx, widget.y() + dy)
+
+    def relocate_widget(self, widget: QWidget, x: int, y: int) -> void:
+        """
+        Relocate a widget to a specified coordination.
+        See IComponentGraphics.relocate_widget(widget, x, y).
+        """
+        widget.move(self._absolute_point(QPoint(x, y)).toPoint())
 
     def clear(self, *, refresh: bool = False) -> void:
         """

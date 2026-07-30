@@ -67,10 +67,10 @@ class HyperTextEdit(QTextEdit):
                 other = other.position
             return self.position > other
 
-        def __add__(self, other: int) -> Self:
+        def __add__(self, other: int) -> 'HyperTextEdit._InlineObject':
             return HyperTextEdit._InlineObject(self.object, self.widget, self.position + other)
 
-        def __sub__(self, other: int) -> Self:
+        def __sub__(self, other: int) -> 'HyperTextEdit._InlineObject':
             return HyperTextEdit._InlineObject(self.object, self.widget, self.position - other)
 
         def __iadd__(self, other: int) -> Self:
@@ -81,7 +81,7 @@ class HyperTextEdit(QTextEdit):
             self.position -= other
             return self
 
-        def __value__(self) -> int:
+        def __value__(self) -> float | int:
             """
             Return the position as the value in treap.
             :return: position in the document
@@ -89,14 +89,14 @@ class HyperTextEdit(QTextEdit):
             return self.position
 
         @classmethod
-        def __minimum__(cls) -> Self:
+        def __minimum__(cls) -> 'HyperTextEdit._InlineObject':
             return HyperTextEdit._InlineObject(null, null, 'minimum')
 
         @classmethod
-        def __maximum__(cls) -> Self:
+        def __maximum__(cls) -> 'HyperTextEdit._InlineObject':
             return HyperTextEdit._InlineObject(null, null, 'maximum')
 
-        def __has_value__(self) -> Self:
+        def __has_value__(self) -> bool:
             return isinstance(self.position, int)
 
     def __init__(self, parent: Nullable[QWidget]):

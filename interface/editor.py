@@ -4,8 +4,11 @@ from PySide6.QtCore import *
 from PySide6.QtWidgets import *
 
 from alias import *
+from alias import Nullable
 from core.localization import _
-from ui_style_editor import Ui_EditorWindow
+from core.script import Script
+from core.environment import Environment
+from interface.ui_style_editor import Ui_EditorWindow
 from interface.edition_canvas import EditionCanvas
 
 
@@ -13,9 +16,10 @@ from interface.edition_canvas import EditionCanvas
 class EditorWindow(QMainWindow, Ui_EditorWindow):
     _instance: Nullable['EditorWindow'] = null
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls, parent: Nullable[QWidget] = null) -> Self:
         if cls._instance is null:
-            cls._instance = super(EditorWindow, cls).__new__(cls, *args, **kwargs)
+            cls._instance = super(EditorWindow, cls).__new__(cls)
+            return cls._instance  # type: ignore
         raise TypeError('Singleton type EditorWindow is being instantiated the second time')
 
     @final
@@ -30,7 +34,9 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
         def __hash__(self) -> int:
             return hash(self.value)
 
-        def __eq__(self, other: Self) -> bool:
+        def __eq__(self, other: Any) -> bool:
+            if not isinstance(other, EditorWindow.TabHandler):
+                raise TypeError('Cannot compare EditorWindow.TabHandler with other types')
             return self.value == other.value
 
         @classmethod
@@ -38,18 +44,29 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
             return EditorWindow.TabHandler(cls.FreeHandler, title)
 
         @property
-        def valid(self):
+        def valid(self) -> bool:
             return (self in EditorWindow._instance.tabs) if EditorWindow._instance is not null else False
 
-    def __init__(self, parent: QWidget = None):
+    def __init__(self, parent: Nullable[QWidget] = null):
         super(EditorWindow, self).__init__(parent)
         self.setupUi(self)
         self.tabs: IDictionary[EditorWindow.TabHandler, EditionCanvas] = {}
         self.tabWidget_editor.setEditor(self)
+        self.env = Environment()
 
         self.compArea_layout = QVBoxLayout(self.scrollAreaCompContents)
 
         self.setup()
+
+        # Test code
+        self.env.import_kit(r'kits/common')
+        tab = self.create_canvas('TestTab')
+        self.tabWidget_editor.setCurrentWidget(canvas := self.canvas(tab))
+        # canvas.create_lineedit(QRectF(0, 0, 100, 20))
+        comp_meta = self.env.kit_manager.lookup('clk.br')
+        comp = comp_meta.component_type(null, canvas)
+        script = Script(comp)
+        comp.interface.paint(canvas)
 
     def canvas(self, handler: 'EditorWindow.TabHandler') -> EditionCanvas:
         return self.tabs[handler]
@@ -60,6 +77,7 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
         self.tabs[handler] = canvas
 
     def unregister_canvas(self, canvas: EditionCanvas) -> void:
+        # pyrefly: ignore [bad-assignment]
         key = null
         for k, v in self.tabs.items():
             if v == canvas:
@@ -67,6 +85,7 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
                 break
         if key is null:
             raise KeyError('No such canvas to unregister')
+        key: EditorWindow.TabHandler  # not null
         self.tabs.pop(key)
 
     def setup(self) -> void:
@@ -91,3 +110,6 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
         self.tabWidget_editor.addTab(canvas, title)
         self.register_canvas(handler, canvas)
         return handler
+
+    def remove_canvas(self, canvas: EditionCanvas) -> void:
+        pass
