@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: EngineerCoder 1.0\n"
 "Report-Msgid-Bugs-To: zzr4028@163.com\n"
-"POT-Creation-Date: 2026-07-16 19:37+0800\n"
+"POT-Creation-Date: 2026-07-31 14:54+0800\n"
 "PO-Revision-Date: 2026-07-13 17:29+0800\n"
 "Last-Translator: zzr zzr4028@163.com\n"
 "Language: en_US\n"
@@ -14,25 +14,70 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: interface/editor.py:30
+#: core/build.py:46
+msgid "B1001"
+msgstr "Unresolved building exception."
+
+#: core/build.py:47
+msgid "B1002"
+msgstr "Invalid building configuration: {1}"
+
+#: core/build.py:48
+msgid "B1003"
+msgstr "I/O exception during building: {1}"
+
+#: core/build.py:49
+msgid "B1004"
+msgstr "Language \"{1}\" not supported by component \"{2}\"."
+
+#: core/build.py:50
+msgid "B1005"
+msgstr "Multiple components \"{2}\" conflict for language \"{1}\"."
+
+#: core/build.py:75
+msgid "CPG.enter.open_fail"
+msgstr "Fail to open compilation product file."
+
+#: core/build.py:90
+msgid "CPG.write.closed"
+msgstr "Compilation product file is unexpectedly closed."
+
+#: core/build.py:97
+msgid "CPG.write.fail"
+msgstr "Fail to write into compilation product file."
+
+#: core/resource.py:22
+msgid "I2001"
+msgstr "Unresolved resource error."
+
+#: core/resource.py:23
+msgid "I2002"
+msgstr "Resource not found: {1}"
+
+#: core/resource.py:24
+msgid "I2003"
+msgstr "Resource I/O error: {1}"
+
+#: core/resource.py:25
+msgid "I2004"
+msgstr "Invalid resource format: {1}"
+
+#: core/resource.py:26
+msgid "I2005"
+msgstr "Invalid resource content: {1}"
+
+#: interface/editor.py:103
 msgid "ui.component.filter"
 msgstr "Search"
 
-#: interface/editor.py:31
+#: interface/editor.py:104
 msgid "ui.title_short"
 msgstr "EngineerCoder"
 
-#: interface/editor.py:32
+#: interface/editor.py:105
 msgid "ui.component.title"
 msgstr "Components"
 
-#: interface/editor.py:33
+#: interface/editor.py:106
 msgid "ui.details.title"
 msgstr "Details"
-
-#~ msgid "core.tu.display"
-#~ msgstr "Translation Unit"
-
-#~ msgid "core.tu.description"
-#~ msgstr "A dependent unit for code generation (usually a source file)."
-

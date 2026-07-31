@@ -25,7 +25,7 @@ os.chdir(BASE_DIR)
 
 match command:
     case 'extract':
-        subprocess.run(['pybabel', 'extract', '-o', 'res/locale/app.pot', '.'])
+        subprocess.run(['pybabel', 'extract', '-F', 'babel.cfg', '-o', 'res/locale/app.pot', '.'])
         subprocess.run(['pybabel', 'update', '-i', 'res/locale/app.pot', '-d', 'res/locale'])
     case 'compile':
         subprocess.run(['pybabel', 'compile', '-d', 'res/locale'])

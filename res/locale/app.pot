@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-07-16 19:37+0800\n"
+"POT-Creation-Date: 2026-07-31 14:54+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,19 +17,71 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: interface/editor.py:30
+#: core/build.py:46
+msgid "B1001"
+msgstr ""
+
+#: core/build.py:47
+msgid "B1002"
+msgstr ""
+
+#: core/build.py:48
+msgid "B1003"
+msgstr ""
+
+#: core/build.py:49
+msgid "B1004"
+msgstr ""
+
+#: core/build.py:50
+msgid "B1005"
+msgstr ""
+
+#: core/build.py:75
+msgid "CPG.enter.open_fail"
+msgstr ""
+
+#: core/build.py:90
+msgid "CPG.write.closed"
+msgstr ""
+
+#: core/build.py:97
+msgid "CPG.write.fail"
+msgstr ""
+
+#: core/resource.py:22
+msgid "I2001"
+msgstr ""
+
+#: core/resource.py:23
+msgid "I2002"
+msgstr ""
+
+#: core/resource.py:24
+msgid "I2003"
+msgstr ""
+
+#: core/resource.py:25
+msgid "I2004"
+msgstr ""
+
+#: core/resource.py:26
+msgid "I2005"
+msgstr ""
+
+#: interface/editor.py:103
 msgid "ui.component.filter"
 msgstr ""
 
-#: interface/editor.py:31
+#: interface/editor.py:104
 msgid "ui.title_short"
 msgstr ""
 
-#: interface/editor.py:32
+#: interface/editor.py:105
 msgid "ui.component.title"
 msgstr ""
 
-#: interface/editor.py:33
+#: interface/editor.py:106
 msgid "ui.details.title"
 msgstr ""
 
