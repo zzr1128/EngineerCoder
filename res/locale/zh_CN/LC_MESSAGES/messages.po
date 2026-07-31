@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: EngineerCoder 1.0\n"
 "Report-Msgid-Bugs-To: zzr4028@163.com\n"
-"POT-Creation-Date: 2026-07-16 19:37+0800\n"
+"POT-Creation-Date: 2026-07-31 14:54+0800\n"
 "PO-Revision-Date: 2026-07-13 17:29+0800\n"
 "Last-Translator: zzr zzr4028@163.com\n"
 "Language: zh_Hans_CN\n"
@@ -14,25 +14,70 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: interface/editor.py:30
+#: core/build.py:46
+msgid "B1001"
+msgstr "未知的构建错误。"
+
+#: core/build.py:47
+msgid "B1002"
+msgstr "无效的构建配置：{1}"
+
+#: core/build.py:48
+msgid "B1003"
+msgstr "构建时发生I/O异常：{1}"
+
+#: core/build.py:49
+msgid "B1004"
+msgstr "组件 \"{2}\" 不支持语言 \"{1}\"。"
+
+#: core/build.py:50
+msgid "B1005"
+msgstr "语言 \"{1}\" 有多个冲突组件 \"{2}\"。"
+
+#: core/build.py:75
+msgid "CPG.enter.open_fail"
+msgstr "无法打开编译产物文件。"
+
+#: core/build.py:90
+msgid "CPG.write.closed"
+msgstr "编译产物文件被意外关闭。"
+
+#: core/build.py:97
+msgid "CPG.write.fail"
+msgstr "无法写入编译产物文件。"
+
+#: core/resource.py:22
+msgid "I2001"
+msgstr "未知的资源错误。"
+
+#: core/resource.py:23
+msgid "I2002"
+msgstr "找不到资源：{1}"
+
+#: core/resource.py:24
+msgid "I2003"
+msgstr "资源I/O错误：{1}"
+
+#: core/resource.py:25
+msgid "I2004"
+msgstr "无效的资源格式：{1}"
+
+#: core/resource.py:26
+msgid "I2005"
+msgstr "无效的资源内容：{1}"
+
+#: interface/editor.py:103
 msgid "ui.component.filter"
 msgstr "搜索"
 
-#: interface/editor.py:31
+#: interface/editor.py:104
 msgid "ui.title_short"
 msgstr "EngineerCoder"
 
-#: interface/editor.py:32
+#: interface/editor.py:105
 msgid "ui.component.title"
 msgstr "组件"
 
-#: interface/editor.py:33
+#: interface/editor.py:106
 msgid "ui.details.title"
 msgstr "详细信息"
-
-#~ msgid "core.tu.display"
-#~ msgstr "翻译单元"
-
-#~ msgid "core.tu.description"
-#~ msgstr "独立的代码生成单元（通常是一个源文件）。"
-
