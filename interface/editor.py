@@ -2,6 +2,7 @@
 
 from PySide6.QtCore import *
 from PySide6.QtWidgets import *
+from PySide6.QtGui import *
 
 from alias import *
 from alias import Nullable
@@ -65,8 +66,8 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
         # canvas.create_lineedit(QRectF(0, 0, 100, 20))
         comp_meta = self.env.kit_manager.lookup('clk.br')
         comp = comp_meta.component_type(null, canvas)
-        script = Script(comp)
-        comp.interface.paint(canvas)
+        self.script = Script(comp)
+        # comp.interface.paint(canvas)
 
     def canvas(self, handler: 'EditorWindow.TabHandler') -> EditionCanvas:
         return self.tabs[handler]
@@ -88,8 +89,63 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
         key: EditorWindow.TabHandler  # not null
         self.tabs.pop(key)
 
+    def set_style(self):
+        tp = QColor.fromRgb(self.env.theme.colors.tertiary.rgb() // 2 + self.env.theme.colors.primary.rgb() // 2)  # Mean of tertiary and primary
+        self.dockWidgetContents_comp.setBackgroundColor(self.env.theme.colors.side)
+        self.dockWidgetContents_details.setBackgroundColor(self.env.theme.colors.side)
+        self.setStyleSheet(f"""
+            /* Main Window */
+            QMainWindow {{ 
+                background-color: {self.env.theme.colors.primary.name()}; 
+                color: {self.env.theme.colors.foreground.name()};
+            }}
+            QWidget#{self.centralwidget.objectName()} {{ background: transparent; }}
+            
+            /* Tab widget */
+            QTabBar::tab {{
+                padding: 6px 14px;
+                min-height: 10px;
+                background: {self.env.theme.colors.secondary.name()};
+                border-radius: 6px;
+            }}
+            QTabBar::tab:selected {{
+                background-color: {self.env.theme.colors.tertiary.name()};
+                border-radius: 6px;
+            }}
+            QTabBar::tab:hover:!selected {{
+                background-color: {tp.name()};
+                border-radius: 6px;
+            }}
+            QTabWidget::pane {{
+                background-color: {self.env.theme.colors.secondary.name()};
+                border-radius: 6px;
+            }}
+            QTabWidget, QTabBar {{
+                background: transparent;
+                spacing: 3px;
+                border-radius: 6px;
+            }}
+            
+            /* Side dock widget */
+            QDockWidget::title {{
+                background-color: {self.env.theme.colors.tertiary.name()};
+                border-radius: 6px;
+            }}
+            QScrollArea, QWidget#{self.scrollAreaCompContents.objectName()} {{
+                background-color: {self.env.theme.colors.secondary.name()};
+                border-radius: 6px;
+            }}
+            
+            /* Field controls */
+            QMainWindow QLineEdit, QMainWindow QTextEdit, QMainWindow HyperTextEdit {{
+                background-color: {self.env.theme.colors.tertiary.name()};
+                border-radius: 6px;
+            }}
+        """)
+
     def setup(self) -> void:
         # Setup graphic properties
+        self.set_style()
         self.compArea_layout.setObjectName(u"compArea_layout")
         self.compArea_layout.setSpacing(0)
         self.compArea_layout.setContentsMargins(0, 0, 0, 0)

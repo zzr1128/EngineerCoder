@@ -1,0 +1,23 @@
+{
+    "name": "Light",
+    "display_name": {
+        "en_US": "Light",
+        "zh_CN": "浅色"
+    },
+    "colors": {
+        "components": [
+            "#ADEEFF",
+            "#C6FFF7",
+            "#FFF4D8",
+            "#FFF3FC",
+            "#D9C3FF",
+            "#FFC3C4",
+            "#FCFFBD"
+        ],
+        "primary": "#DDFFFE",
+        "secondary": "#ABD6D4",
+        "tertiary": "#92B0BD",
+        "side": "#C2EDCE",
+        "foreground": "#011014"
+    }
+}

@@ -156,11 +156,13 @@ class IComponentGraphics:
         """
         raise NotImplementedError
 
+    type TextLocate = Literal["baseline", "topleft"]
+
     @overload
     @pure_virtual
     # pyrefly: ignore [inconsistent-overload]
     def draw_text(self, text: string, position: QPoint | QPointF, /, *,
-                  color: QColor, font: QFont, width: int, refresh: bool = False) -> void:
+                  color: QColor, font: QFont, width: int, locate: TextLocate = "baseline", refresh: bool = False) -> void:
         """
         Paint a text at specified position of the text baseline.
         :param text: text to paint
@@ -168,6 +170,7 @@ class IComponentGraphics:
         :param color: color of the text
         :param font: font of the text
         :param width: width of the pen
+        :param locate: location specification method ("baseline" or "topleft")
         :param refresh: when true, invalidate graphics and trigger updating later
         """
         ...
@@ -177,7 +180,7 @@ class IComponentGraphics:
     # pyrefly: ignore [inconsistent-overload]
     def draw_text(self, text: string, rect: QRect | QRectF, /, *,
                   color: QColor, font: QFont, width: int, alignment: Qt.AlignmentFlag = Qt.AlignmentFlag.AlignLeft,
-                  wrapping: WrapMode = WrapMode.Null, refresh: bool = False) -> void:
+                  wrapping: WrapMode = WrapMode.Null, locate: TextLocate = "baseline", refresh: bool = False) -> void:
         """
         Paint a text in the specified rectangle.
         :param text: text to paint
@@ -187,13 +190,14 @@ class IComponentGraphics:
         :param width: width of the pen
         :param alignment: alignment of the text
         :param wrapping: wrapping mode of the text
+        :param locate: location specification method ("baseline" or "topleft")
         :param refresh: when true, invalidate graphics and trigger updating later
         """
         ...
 
     @pure_virtual
     def draw_text(self, text: string, pos: QPoint | QPointF | QRect | QRectF, /, *,
-                  color: QColor, font: QFont, width: int, **kwargs):
+                  color: QColor, font: QFont, width: int, **kwargs) -> void:
         raise NotImplementedError
 
     @pure_virtual
@@ -237,5 +241,21 @@ class IComponentGraphics:
         :param widget: the widget to relocate
         :param x: horizonal coordination
         :param y: vertical coordination
+        """
+        raise NotImplementedError
+
+    @pure_virtual
+    def alloc_color(self) -> QColor:
+        """
+        Allocate a color to be used as theme color of a component.
+        :return: theme color available
+        """
+        raise NotImplementedError
+
+    @pure_virtual
+    def delete_widget(self, widget: QWidget) -> void:
+        """
+        Delete a widget.
+        :param widget: the widget to delete
         """
         raise NotImplementedError

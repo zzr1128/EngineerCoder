@@ -5,8 +5,10 @@ from pathlib import Path
 
 from alias import *
 from core.kit import Kit, KitManager
+from core.localization import language
 from core.meta import Version, SupportedLanguage
 from core.project import Project
+from core.theme import Theme
 
 
 @final
@@ -37,6 +39,9 @@ class Environment:
         self.languages: IList[SupportedLanguage] = []
         self.project: Nullable['Project'] = null
         self.kit_manager = KitManager()
+        self.local_language = language
+        self.theme = Theme.from_resource('light.json')
+        self.rt: IDictionary[string, Any] = {}
 
     def satisfy_kit_version(self, kit: Kit) -> bool:
         return kit.meta.satisfy_version(self.version)
