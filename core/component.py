@@ -19,7 +19,7 @@ class IComponentInterface(abstract):
         pass
 
     @pure_virtual
-    def paint(self, graphics: IComponentGraphics) -> void:  # To be overridden
+    def paint(self, graphics: IComponentGraphics, painting: bool = True) -> void:  # To be overridden
         raise NotImplementedError
 
 

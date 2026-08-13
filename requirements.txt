@@ -3,3 +3,5 @@ PySide6
 babel
 python-qt5
 multipledispatch
+setuptools
+cython

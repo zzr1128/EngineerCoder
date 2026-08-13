@@ -6,18 +6,29 @@
     },
     "colors": {
         "components": [
-            "#ADEEFF",
-            "#C6FFF7",
-            "#FFF4D8",
-            "#FFF3FC",
-            "#D9C3FF",
-            "#FFC3C4",
-            "#FCFFBD"
+            ["#cef2f2", "#b9d9d9"],
+            ["#cee6f2", "#b9ced9"],
+            ["#cedaf2", "#b9c3d9"],
+            ["#cecef2", "#b9b9d9"],
+            ["#dacef2", "#c3b9d9"],
+            ["#e6cef2", "#ceb9d9"],
+            ["#f2cef2", "#d9b9d9"],
+            ["#f2cee6", "#d9b9ce"],
+            ["#f2ceda", "#d9b9c3"],
+            ["#f2cece", "#d9b9b9"],
+            ["#f2dace", "#d9c3b9"],
+            ["#f2e6ce", "#d9ceb9"],
+            ["#f2f2ce", "#d9d9b9"],
+            ["#e6f2ce", "#ced9b9"],
+            ["#daf2ce", "#c3d9b9"],
+            ["#cef2ce", "#b9d9b9"],
+            ["#cef2da", "#b9d9c3"]
         ],
-        "primary": "#DDFFFE",
-        "secondary": "#ABD6D4",
-        "tertiary": "#92B0BD",
-        "side": "#C2EDCE",
-        "foreground": "#011014"
+        "background": "#DAF2EB",
+        "primary": "#8FCCBA",
+        "secondary": "#A3CCC0",
+        "tertiary": "#B8D9CE",
+        "side": "#B8CCC6",
+        "foreground": "#131A18"
     }
 }

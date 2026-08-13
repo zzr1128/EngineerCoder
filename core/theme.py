@@ -6,14 +6,15 @@ import json
 from PySide6.QtGui import QColor
 
 from alias import *
+from alias import IList
 from core.resource import Resource
 
 
-@dataclass
 class Theme:
     @dataclass
     class ThemeColor:
-        components: IList[QColor]
+        components: IList[IList[QColor]]
+        background: QColor
         primary: QColor
         secondary: QColor
         tertiary: QColor
@@ -22,7 +23,8 @@ class Theme:
 
         def __serialize__(self) -> IDictionary[string, Any]:
             return {
-                'components': [c.name() for c in self.components],
+                'components': [[c.name() for c in l] for l in self.components],
+                'background': self.background.name(),
                 'primary': self.primary.name(),
                 'secondary': self.secondary.name(),
                 'tertiary': self.tertiary.name(),
@@ -33,21 +35,30 @@ class Theme:
         @classmethod
         def __deserialize__(cls, data: IDictionary[string, Any]) -> Self:
             require_type(data, dict)
-            require_member(data, 'components', 'primary', 'secondary', 'tertiary', 'side', 'foreground')
+            require_member(data, 'components', 'background', 'primary', 'secondary', 'tertiary', 'side', 'foreground')
             require_type(data['components'], list)
+            require_type(data['background'], string)
             require_type(data['primary'], string)
             require_type(data['secondary'], string)
             require_type(data['tertiary'], string)
             require_type(data['side'], string)
             require_type(data['foreground'], string)
-            components: IList[QColor] = []
+            components: IList[IList[QColor]] = []
             try:
-                for c in data['components']:
-                    require_type(c, string)
-                    color = QColor(c)
-                    components.append(color)
+                for l in data['components']:
+                    if isinstance(l, string):  # Only a single color
+                        components.append([QColor(l)])
+                        continue
+                    require_type(l, list)
+                    this: IList[QColor] = []
+                    for c in l:
+                        require_type(c, string)
+                        color = QColor(c)
+                        this.append(color)
+                    components.append(this)
                 return cls(
                     components=components,
+                    background=QColor(data['background']),
                     primary=QColor(data['primary']),
                     secondary=QColor(data['secondary']),
                     tertiary=QColor(data['tertiary']),
@@ -57,9 +68,22 @@ class Theme:
             except Exception:
                 raise Exception(f'Invalid color')
 
-    name: string
-    display_name: IDictionary[string, string]
-    colors: ThemeColor
+    def __init__(self, name: string, display_name: IDictionary[string, string], colors: ThemeColor):
+        self.name: string = name
+        self.display_name: IDictionary[string, string] = display_name
+        self.colors: 'Theme.ThemeColor' = colors
+
+    #     self._comp_color_map: IDictionary[int, tuple[int, int]] = {}  # RGBA -> (level_idx, color_idx)
+    #     for level_idx, cs in enumerate(self.colors.components):
+    #         for color_idx, color in enumerate(cs):
+    #             self._comp_color_map[color.rgba()] = level_idx, color_idx
+    #
+    # def next_color(self, color: QColor) -> Nullable[QColor]:
+    #     if color not in self._comp_color_map:
+    #         return null
+    #     level_idx, color_idx = self._comp_color_map[color.rgba()]
+    #     cs = self.colors.components[level_idx]
+    #     return cs[(color_idx + 1) % len(cs)]
 
     def __serialize__(self) -> IDictionary[string, Any]:
         return {
