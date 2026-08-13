@@ -66,6 +66,7 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
         # canvas.create_lineedit(QRectF(0, 0, 100, 20))
         comp_meta = self.env.kit_manager.lookup('clk.br')
         comp = comp_meta.component_type(null, canvas)
+        canvas.add_interface(comp.interface)
         self.script = Script(comp)
         # comp.interface.paint(canvas)
 
@@ -96,7 +97,7 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
         self.setStyleSheet(f"""
             /* Main Window */
             QMainWindow {{ 
-                background-color: {self.env.theme.colors.primary.name()}; 
+                background-color: {self.env.theme.colors.background.name()}; 
                 color: {self.env.theme.colors.foreground.name()};
             }}
             QWidget#{self.centralwidget.objectName()} {{ background: transparent; }}
@@ -107,6 +108,7 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
                 min-height: 10px;
                 background: {self.env.theme.colors.secondary.name()};
                 border-radius: 6px;
+                color: {self.env.theme.colors.foreground.name()};
             }}
             QTabBar::tab:selected {{
                 background-color: {self.env.theme.colors.tertiary.name()};
@@ -124,12 +126,14 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
                 background: transparent;
                 spacing: 3px;
                 border-radius: 6px;
+                color: {self.env.theme.colors.foreground.name()};
             }}
             
             /* Side dock widget */
             QDockWidget::title {{
                 background-color: {self.env.theme.colors.tertiary.name()};
                 border-radius: 6px;
+                color: {self.env.theme.colors.foreground.name()};
             }}
             QScrollArea, QWidget#{self.scrollAreaCompContents.objectName()} {{
                 background-color: {self.env.theme.colors.secondary.name()};
@@ -140,6 +144,7 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
             QMainWindow QLineEdit, QMainWindow QTextEdit, QMainWindow HyperTextEdit {{
                 background-color: {self.env.theme.colors.tertiary.name()};
                 border-radius: 6px;
+                color: {self.env.theme.colors.foreground.name()};
             }}
         """)
 

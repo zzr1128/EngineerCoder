@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
-from PySide6.QtCore import QRect, QSize, Signal
+from math import ceil
+
+from PySide6.QtCore import QEvent, QRect, QRectF, QSizeF, Signal
 from PySide6.QtGui import (QPyTextObject, QTextFormat, QTextDocument, QPainter,
                            QTextCharFormat, QTextCursor)
 from PySide6.QtWidgets import QWidget, QTextEdit
@@ -12,6 +14,10 @@ from treap import NonRotationalTreap
 
 class HyperTextEdit(QTextEdit):
     inlineObjectRestored: ClassVar[Signal] = Signal(QWidget)
+
+    # Signal emitted when space the edit occupies in layout changes.
+    # When emitted, the size of the widget is already changed. Use size(), width() or height() to acquire the new size.
+    layoutSpaceChanged: Signal = Signal()
 
     class _InlineObject:
         """
@@ -41,8 +47,8 @@ class HyperTextEdit(QTextEdit):
 
         def __init__(self, obj: Nullable['HyperTextObject'], widget: Nullable[QWidget],
                      posInDocument: int | Literal['maximum', 'minimum']):
-            self.object: 'HyperTextObject' = obj
-            self.widget: QWidget = widget
+            self.object: Nullable['HyperTextObject'] = obj
+            self.widget: Nullable[QWidget] = widget
             if posInDocument == 'maximum':
                 self.position = float('inf')
             elif posInDocument == 'minimum':
@@ -57,6 +63,7 @@ class HyperTextEdit(QTextEdit):
             """
             return self.widget.objectName()
 
+        # noinspection method-overriding
         def __eq__(self, other: Self | int) -> bool:
             if isinstance(other, HyperTextEdit._InlineObject):
                 other = other.position
@@ -68,10 +75,10 @@ class HyperTextEdit(QTextEdit):
             return self.position > other
 
         def __add__(self, other: int) -> 'HyperTextEdit._InlineObject':
-            return HyperTextEdit._InlineObject(self.object, self.widget, self.position + other)
+            return HyperTextEdit._InlineObject(self.object, self.widget, self.position + other)  # type: ignore
 
         def __sub__(self, other: int) -> 'HyperTextEdit._InlineObject':
-            return HyperTextEdit._InlineObject(self.object, self.widget, self.position - other)
+            return HyperTextEdit._InlineObject(self.object, self.widget, self.position - other)  # type: ignore
 
         def __iadd__(self, other: int) -> Self:
             self.position += other
@@ -103,11 +110,14 @@ class HyperTextEdit(QTextEdit):
         super().__init__(parent)
         self.document().contentsChange.connect(self._on_content_change)
         self.inlineObjectRestored.connect(self._restoreObject)
+        self.document().setDefaultFont(self.font())
+        self.basic_height = self._heightToFit()
 
         self.mdf_stack: list[int | tuple[QWidget, ...]] = []  # Stack of modifications
         self.objects: IDictionary[string, HyperTextEdit._InlineObject] = {}
         self.displaying_objects: NonRotationalTreap[HyperTextEdit._InlineObject, int] \
             = NonRotationalTreap.create_integral(HyperTextEdit._InlineObject)  # type: ignore
+        self.max_height = self.maximumHeight()
 
     def insertObject(self, widget: QWidget) -> void:
         """
@@ -167,16 +177,52 @@ class HyperTextEdit(QTextEdit):
         widget.show()
         self.viewport().update()
 
+    def _heightToFit(self) -> int:
+        """
+        Calculate the minimum height of this editor that can display all
+        the content without vertical scrolling.
+        :return: the minimum height in pixels
+        """
+        doc = self.document()
+        if self.lineWrapMode() == QTextEdit.LineWrapMode.WidgetWidth:
+            doc.setTextWidth(self.viewport().width())
+        else:
+            doc.setTextWidth(-1)
+
+        content_height = ceil(doc.documentLayout().documentSize().height())
+        vm = self.viewportMargins()
+        return content_height + vm.top() + vm.bottom()  # + 2 * self.frameWidth()
+
     def _on_content_change(self, pos: int, removed_count: int, added_count: int) -> void:
         if removed_count > 0:  # Remove text
             to_remove = self.displaying_objects.query_by_value(pos, pos + removed_count - 1)
             cnt = 0
             for obj in to_remove:
+                NotNull(obj.widget)
                 self.removeObject(obj.widget)
                 cnt += 1
 
         if added_count != removed_count:
             self.displaying_objects.add_suffix_by_value(pos + added_count - removed_count, added_count - removed_count)
+
+        self.fitSize()
+
+    def setMaximumHeight(self, maxh: int, /) -> void:
+        super().setMaximumHeight(maxh)
+        self.max_height = self.maximumHeight()
+
+    def changeEvent(self, event: QEvent, /) -> void:
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.FontChange:
+            self.document().setDefaultFont(self.font())
+            self.basic_height = self._heightToFit()
+            self.fitSize()
+
+    def fitSize(self) -> void:
+        h = max(self.basic_height, min(self.max_height, self._heightToFit()))
+        if self.height() != h:
+            self.setFixedHeight(h)
+            self.layoutSpaceChanged.emit()
 
 
 class HyperTextObject(QPyTextObject):
@@ -191,18 +237,18 @@ class HyperTextObject(QPyTextObject):
         self.id = HyperTextObject.acquireObjectId()
         self.format_id = QTextFormat.ObjectTypes.UserObject + self.id
 
-    def intrinsicSize(self, doc: QTextDocument, posInDocument: int, fmt: QTextFormat, /) -> QSize:
-        return self.widget.sizeHint()
+    def intrinsicSize(self, doc: QTextDocument, posInDocument: int, fmt: QTextFormat, /) -> QSizeF:
+        return QSizeF(self.widget.sizeHint())
 
-    def drawObject(self, painter: QPainter, rect: QRect, doc: QTextDocument,
+    def drawObject(self, painter: QPainter, rect: QRect | QRectF, doc: QTextDocument,
                    posInDocument: int, fmt: QTextFormat, /) -> void:
         cursor = QTextCursor(doc)
         cursor.setPosition(posInDocument)
         fmt = cursor.charFormat()
         font = fmt.font()
         metrics = TextMeasure(font, '')
-        x: int = rect.x() - self.editor.horizontalScrollBar().value()
-        y: int = rect.y() - self.editor.verticalScrollBar().value() + (self.widget.height() - metrics.ascent) // 2
+        x = int(rect.x() - self.editor.horizontalScrollBar().value())
+        y = int(rect.y() - self.editor.verticalScrollBar().value() + (self.widget.height() - metrics.ascent) // 2)
         self.widget.move(x, y)
 
         if self.widget.isHidden():  # When widget is restored via undo/redo, the widget is updated

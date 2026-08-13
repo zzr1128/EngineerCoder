@@ -4,7 +4,7 @@ import enum
 
 from PySide6.QtCore import QPoint, QRect, Qt, QRectF, QPointF
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QFontMetricsF
-from PySide6.QtWidgets import QWidget, QLineEdit, QTextEdit
+from PySide6.QtWidgets import QWidget, QLineEdit, QTextEdit, QLabel
 
 from alias import *
 
@@ -105,6 +105,20 @@ class IComponentGraphics:
         raise NotImplementedError
 
     @pure_virtual
+    def disp_draw_rect(self, rect: QRectF, color: QColor, *,
+                       round_radius: int = NotRounded) -> void:
+        """
+        Paint a disposable (one-off) filled rectangle.
+        Once graphics updated, the figure will be removed unless painting again.
+        :param rect: position and size of the rectangle
+        :param color: filling color
+        :param round_radius: radius of the rounded angles; NotRound if square
+
+        This method can be called only in painting context.
+        """
+        raise NotImplementedError
+
+    @pure_virtual
     def draw_frame(self, rect: QRect | QRectF, color: QColor, line_width: int = 2, *,
                    round_radius: int = NotRounded, refresh: bool = False) -> void:
         """
@@ -114,6 +128,21 @@ class IComponentGraphics:
         :param line_width: width of wireframe lines
         :param round_radius: radius of the rounded angles; NotRound if square
         :param refresh: when true, invalidate graphics and trigger updating later
+        """
+        raise NotImplementedError
+
+    @pure_virtual
+    def disp_draw_frame(self, rect: QRect | QRectF, color: QColor, line_width: int = 2, *,
+                        round_radius: int = NotRounded) -> void:
+        """
+        Paint a disposable (one-off) wireframe.
+        Once graphics updated, the figure will be removed unless painting again.
+        :param rect: the outer frame rectangle
+        :param color: filling color
+        :param line_width: width of wireframe lines
+        :param round_radius: radius of the rounded angles; NotRound if square
+
+        This method can be called only in painting context.
         """
         raise NotImplementedError
 
@@ -132,6 +161,22 @@ class IComponentGraphics:
         raise NotImplementedError
 
     @pure_virtual
+    def disp_draw_line(self, start: QPoint | QPointF, end: QPoint | QPointF, color: QColor, line_width: int = 2, *,
+                       round_ends: bool = False) -> void:
+        """
+        Paint a disposable (one-off) line segment.
+        Once graphics updated, the figure will be removed unless painting again.
+        :param start: the starting point
+        :param end: the ending point
+        :param color: color of the line
+        :param line_width: width of the line
+        :param round_ends: when true, the ends are semicircles rather than square
+
+        This method can be called only in painting context.
+        """
+        raise NotImplementedError
+
+    @pure_virtual
     def draw_triangle(self, p1: QPoint | QPointF, p2: QPoint | QPointF, p3: QPoint | QPointF, color: QColor, *,
                       refresh: bool = False) -> void:
         """
@@ -145,6 +190,22 @@ class IComponentGraphics:
         raise NotImplementedError
 
     @pure_virtual
+    def disp_draw_triangle(self, p1: QPoint | QPointF, p2: QPoint | QPointF, p3: QPoint | QPointF, color: QColor, *,
+                           refresh: bool = False) -> void:
+        """
+        Paint a disposable (one-off) filled triangle.
+        Once graphics updated, the figure will be removed unless painting again.
+        :param p1: the 1st vertex
+        :param p2: the 2nd vertex
+        :param p3: the 3rd vertex
+        :param color: filling color
+        :param refresh: when true, invalidate graphics and trigger updating later
+
+        This method can be called only in painting context.
+        """
+        raise NotImplementedError
+
+    @pure_virtual
     def draw_lines(self, points: IEnumerable[QPoint | QPointF], color: QColor, line_width: int = 2, *,
                    refresh: bool = False) -> void:
         """
@@ -153,6 +214,21 @@ class IComponentGraphics:
         :param color: color of the line
         :param line_width: width of the line
         :param refresh: when true, invalidate graphics and trigger updating later
+        """
+        raise NotImplementedError
+
+    @pure_virtual
+    def disp_draw_lines(self, points: IEnumerable[QPoint | QPointF], color: QColor, line_width: int = 2, *,
+                        refresh: bool = False) -> void:
+        """
+        Paint a disposable (one-off) broken line.
+        Once graphics updated, the figure will be removed unless painting again.
+        :param points: vertexes of the broken line
+        :param color: color of the line
+        :param line_width: width of the line
+        :param refresh: when true, invalidate graphics and trigger updating later
+
+        This method can be called only in painting context.
         """
         raise NotImplementedError
 
@@ -195,8 +271,53 @@ class IComponentGraphics:
         """
         ...
 
+    # Implementation of overloads
     @pure_virtual
     def draw_text(self, text: string, pos: QPoint | QPointF | QRect | QRectF, /, *,
+                  color: QColor, font: QFont, width: int, **kwargs) -> void:
+        raise NotImplementedError
+
+    @overload
+    @pure_virtual
+    def disp_draw_text(self, text: string, pos: QPoint | QPointF | QRect | QRectF, /, *,
+                       color: QColor, font: QFont, width: int, locate: TextLocate = "baseline") -> void:
+        """
+        Paint a disposable (one-off) text at specified position of the text baseline.
+        Once graphics updated, the figure will be removed unless painting again.
+        :param text: text to paint
+        :param pos: starting position of the text baseline
+        :param color: color of the text
+        :param font: font of the text
+        :param width: width of the pen
+        :param locate: location specification method ("baseline" or "topleft")
+
+        This method can be called only in painting context.
+        """
+        ...
+
+    @overload
+    @pure_virtual
+    def disp_draw_text(self, text: string, pos: QPoint | QPointF | QRect | QRectF, /, *,
+                       color: QColor, font: QFont, width: int, alignment: Qt.AlignmentFlag = Qt.AlignmentFlag.AlignLeft,
+                       wrapping: WrapMode = WrapMode.Null, locate: TextLocate = "baseline") -> void:
+        """
+        Paint a disposable (one-off) text in the specified rectangle.
+        Once graphics updated, the figure will be removed unless painting again.
+        :param text: text to paint
+        :param pos: outer frame of the text
+        :param color: color of the text
+        :param font: font of the text
+        :param width: width of the pen
+        :param alignment: alignment of the text
+        :param wrapping: wrapping mode of the text
+        :param locate: location specification method ("baseline" or "topleft")
+
+        This method can be called only in painting context.
+        """
+        ...
+
+    @pure_virtual
+    def disp_draw_text(self, text: string, pos: QPoint | QPointF | QRect | QRectF, /, *,
                   color: QColor, font: QFont, width: int, **kwargs) -> void:
         raise NotImplementedError
 
@@ -224,6 +345,44 @@ class IComponentGraphics:
         """
         raise NotImplementedError
 
+    @overload
+    @pure_virtual
+    def create_text(self, text: string, rect: QRect | QRectF, font: QFont, /) -> QLabel:
+        """
+        Create a text control within the specified rectangle.
+        :param text: text to show
+        :param rect: rectangle that restricts the text area
+        :param font: font of the text
+        """
+        ...
+
+    @overload
+    @pure_virtual
+    def create_text(self, text: string, position: QPoint | QPointF, font: QFont, /) -> QLabel:
+        """
+        Create a text control at the specified position.
+        :param text: text to show
+        :param position: position where the topleft of the control locates
+        :param font: font of the text
+        """
+        ...
+
+    # Implementation of overloads
+    @pure_virtual
+    def create_text(self, text: string, pos: QPoint | QPointF | QRect | QRectF, font: QFont, /) -> QLabel:
+        raise NotImplementedError
+
+    @pure_virtual
+    def create_native_label(self, text: string, font: QFont) -> QLabel:
+        """
+        Create a native ``QLabel`` widget.
+        :param text: text of the label
+        :param font: font of the label
+
+        This method will automatically compute the size of the label.
+        """
+        raise NotImplementedError
+
     @pure_virtual
     def move_widget(self, widget: QWidget, dx: int, dy: int) -> void:
         """
@@ -245,9 +404,35 @@ class IComponentGraphics:
         raise NotImplementedError
 
     @pure_virtual
+    def resize_widget(self, widget: QWidget, w: int, h: int) -> void:
+        """
+        Resize a widget to the specified size.
+        :param widget: the widget to resize
+        :param w: width
+        :param h: height
+        """
+        raise NotImplementedError
+
+    @property
+    @pure_virtual
+    def client_rect(self) -> QRectF:
+        """
+        :return: the client rectangle relative to the current anchor point.
+        """
+        raise NotImplementedError
+
+    @pure_virtual
     def alloc_color(self) -> QColor:
         """
         Allocate a color to be used as theme color of a component.
+        :return: theme color available
+        """
+        raise NotImplementedError
+
+    @pure_virtual
+    def next_color(self) -> QColor:
+        """
+        Acquire next color in the current level as theme color of a component.
         :return: theme color available
         """
         raise NotImplementedError
@@ -257,5 +442,14 @@ class IComponentGraphics:
         """
         Delete a widget.
         :param widget: the widget to delete
+        """
+        raise NotImplementedError
+
+    @pure_virtual
+    def refresh(self) -> void:
+        """
+        Request the canvas to repaint the whole content as soon as possible.
+        Use this when the visual content becomes stale without any widget geometry change
+        covering the dirty region (e.g. layout space of a component changed).
         """
         raise NotImplementedError

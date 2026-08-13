@@ -1,13 +1,15 @@
 # -*- coding: utf-8 -*-
 
 from dataclasses import dataclass
+from math import ceil
 
 from shiboken6 import getCppPointer
 from PySide6.QtCore import Qt, QPoint, QRect, QRectF, QPointF, QLineF
 from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QPainterPath, QPaintEvent, QResizeEvent
-from PySide6.QtWidgets import QWidget, QTextEdit, QLineEdit
+from PySide6.QtWidgets import QWidget, QTextEdit, QLineEdit, QLabel
 
 from alias import *
+from core.component import IComponentInterface
 from core.environment import Environment
 from core.graphics import IComponentGraphics, WrapMode
 from core.hyper_text_edit import HyperTextEdit
@@ -210,11 +212,23 @@ class EditionCanvas(QWidget, IComponentGraphics):
         self.painter: Nullable[QPainter] = null
         self.figures: IList[EditionCanvas.Paintable] = []
         self.widgets: IDictionary[int, tuple[QWidget, EditionCanvas.WidgetAnnotation]] = {}
+        self.components: IList[IComponentInterface] = []
+
+    def add_interface(self, component: IComponentInterface) -> void:
+        self.components.append(component)
+
+    def remove_interface(self, component: IComponentInterface) -> void:
+        self.components.remove(component)
 
     def paintEvent(self, event: QPaintEvent, /) -> null:
+        # When interface updates, remember to update in resizeEvent
         with QPainter(self) as self.painter:
             for figure in self.figures:
                 figure.paint(self.painter)  # type: ignore (not null)
+
+            for inter in self.components:
+                inter.paint(self)
+
         self.painter = null
 
     # noinspection property-definition
@@ -275,6 +289,14 @@ class EditionCanvas(QWidget, IComponentGraphics):
         if refresh:
             self.update()
 
+    def disp_draw_rect(self, rect: QRectF, color: QColor, *, round_radius: int = IComponentGraphics.NotRounded) -> void:
+        """
+        Paint a disposable (one-off) filled rectangle.
+        Once the canvas updated, the figure will be removed.
+        See IComponentGraphics.disp_draw_rect(rect, color, *[, round_radius]).
+        """
+        EditionCanvas.Rectangle(self._absolute_rect(rect), color, round_radius).paint(self.painter)  # type: ignore (not null)
+
     def draw_frame(self, rect: QRect | QRectF, color: QColor, line_width: int = 2, *,
                    round_radius: int = IComponentGraphics.NotRounded, refresh: bool = False) -> void:
         """
@@ -284,6 +306,15 @@ class EditionCanvas(QWidget, IComponentGraphics):
         self.figures.append(EditionCanvas.RectangleFrame(self._absolute_rect(rect), color, round_radius, line_width))
         if refresh:
             self.update()
+
+    def disp_draw_frame(self, rect: QRect | QRectF, color: QColor, line_width: int = 2, *,
+                        round_radius: int = IComponentGraphics.NotRounded) -> void:
+        """
+        Paint a disposable (one-off) wireframe.
+        Once the canvas updated, the figure will be removed.
+        See IComponentGraphics.disp_draw_frame(rect, color[, line_width], *, [round_radius]).
+        """
+        EditionCanvas.RectangleFrame(self._absolute_rect(rect), color, round_radius, line_width).paint(self.painter)  # type: ignore (not null)
 
     def draw_line(self, start: QPoint | QPointF, end: QPoint | QPointF, color: QColor, line_width: int = 2, *,
                   round_ends: bool = False, refresh: bool = False) -> void:
@@ -296,6 +327,22 @@ class EditionCanvas(QWidget, IComponentGraphics):
         if refresh:
             self.update()
 
+    def disp_draw_line(self, start: QPoint | QPointF, end: QPoint | QPointF, color: QColor, line_width: int = 2, *,
+                       round_ends: bool = False) -> void:
+        """
+        Paint a disposable (one-off) line segment.
+        Once graphics updated, the figure will be removed unless painting again.
+        :param start: the starting point
+        :param end: the ending point
+        :param color: color of the line
+        :param line_width: width of the line
+        :param round_ends: when true, the ends are semicircles rather than square
+
+        This method can be called only in painting context.
+        """
+        EditionCanvas.Line(self._absolute_point(start), self._absolute_point(end),
+                           color, line_width, round_ends).paint(self.painter)  # type: ignore (not null)
+
     def draw_triangle(self, p1: QPoint | QPointF, p2: QPoint | QPointF, p3: QPoint | QPointF, color: QColor, *,
                       refresh: bool = False) -> void:
         """
@@ -307,15 +354,46 @@ class EditionCanvas(QWidget, IComponentGraphics):
         if refresh:
             self.update()
 
+    def disp_draw_triangle(self, p1: QPoint | QPointF, p2: QPoint | QPointF, p3: QPoint | QPointF, color: QColor, *,
+                           refresh: bool = False) -> void:
+        """
+        Paint a disposable (one-off) filled triangle.
+        Once graphics updated, the figure will be removed unless painting again.
+        :param p1: the 1st vertex
+        :param p2: the 2nd vertex
+        :param p3: the 3rd vertex
+        :param color: filling color
+        :param refresh: when true, invalidate graphics and trigger updating later
+
+        This method can be called only in painting context.
+        """
+        EditionCanvas.Triangle(self._absolute_point(p1), self._absolute_point(p2),
+                               self._absolute_point(p3), color).paint(self.painter)  # type: ignore (not null)
+
     def draw_lines(self, points: IEnumerable[QPoint | QPointF], color: QColor, line_width: int = 2, *,
                    refresh: bool = False) -> void:
         """
         Paint a broken line.
         See IComponentGraphics.draw_lines(points, color, line_width, *, [refresh]).
         """
-        self.figures.append(EditionCanvas.BrokenLine(points, color, line_width))
+        self.figures.append(EditionCanvas.BrokenLine([self._absolute_point(p) for p in points], color, line_width))
         if refresh:
             self.update()
+
+    def disp_draw_lines(self, points: IEnumerable[QPoint | QPointF], color: QColor, line_width: int = 2, *,
+                        refresh: bool = False) -> void:
+        """
+        Paint a disposable (one-off) broken line.
+        Once graphics updated, the figure will be removed unless painting again.
+        :param points: vertexes of the broken line
+        :param color: color of the line
+        :param line_width: width of the line
+        :param refresh: when true, invalidate graphics and trigger updating later
+
+        This method can be called only in painting context.
+        """
+        EditionCanvas.BrokenLine([self._absolute_point(p) for p in points],
+                                 color, line_width).paint(self.painter)  # type: ignore (not null)
 
     # noinspection method-overriding
     @overload
@@ -355,6 +433,62 @@ class EditionCanvas(QWidget, IComponentGraphics):
         if refresh:
             self.update()
 
+    # noinspection method-overriding
+    @overload
+    def disp_draw_text(self, text: string, pos: QPoint | QPointF | QRect | QRectF, /, *,
+                       color: QColor, font: QFont, width: int,
+                       locate: IComponentGraphics.TextLocate = "baseline") -> void:
+        """
+        Paint a disposable (one-off) text at specified position of the text baseline.
+        Once graphics updated, the figure will be removed unless painting again.
+        :param text: text to paint
+        :param pos: starting position of the text baseline
+        :param color: color of the text
+        :param font: font of the text
+        :param width: width of the pen
+        :param locate: location specification method ("baseline" or "topleft")
+
+        This method can be called only in painting context.
+        """
+        ...
+
+    # noinspection method-overriding
+    @overload
+    def disp_draw_text(self, text: string, pos: QPoint | QPointF | QRect | QRectF, /, *,
+                       color: QColor, font: QFont, width: int, alignment: Qt.AlignmentFlag = Qt.AlignmentFlag.AlignLeft,
+                       wrapping: WrapMode = WrapMode.Null, locate: IComponentGraphics.TextLocate = "baseline") -> void:
+        """
+        Paint a disposable (one-off) text in the specified rectangle.
+        Once graphics updated, the figure will be removed unless painting again.
+        :param text: text to paint
+        :param pos: outer frame of the text
+        :param color: color of the text
+        :param font: font of the text
+        :param width: width of the pen
+        :param alignment: alignment of the text
+        :param wrapping: wrapping mode of the text
+        :param locate: location specification method ("baseline" or "topleft")
+
+        This method can be called only in painting context.
+        """
+        ...
+
+    def disp_draw_text(self, text: string, pos: QPoint | QPointF | QRect | QRectF, /, *,
+                       color: QColor, font: QFont, width: int,
+                       locate: IComponentGraphics.TextLocate = "baseline", **kwargs) -> void:
+        if isinstance(pos, (QPoint, QPointF)):
+            if locate == "topleft":
+                pos = QPointF(pos.x(), pos.y() + TextMeasure(font, text).ascent)
+            EditionCanvas.Text(self._absolute_point(pos), text, color, font, width,
+                               Qt.AlignmentFlag.AlignLeft, WrapMode.Null).paint(self.painter)  # type: ignore (not null)
+        else:
+            alignment = kwargs.get('alignment', Qt.AlignmentFlag.AlignLeft)
+            wrapping = kwargs.get('wrapping', WrapMode.Null)
+            if locate == "topleft":
+                pos = QRectF(pos.x(), pos.y() + TextMeasure(font, text).ascent, pos.width(), pos.height())
+            EditionCanvas.Text(self._absolute_rect(pos), text, color, font, width,
+                               alignment, wrapping).paint(self.painter)  # type: ignore (not null)
+
     @staticmethod
     def _widget_hash(widget: QWidget) -> int:
         return getCppPointer(widget)[0]
@@ -374,6 +508,7 @@ class EditionCanvas(QWidget, IComponentGraphics):
         if isinstance(r, QRectF):
             r = r.toRect()
         edit.setGeometry(r)
+        edit.setFixedSize(r.size())
         return edit
 
     def create_textedit(self, rect: QRect | QRectF) -> QTextEdit:
@@ -388,6 +523,7 @@ class EditionCanvas(QWidget, IComponentGraphics):
         if isinstance(r, QRectF):
             r = r.toRect()
         edit.setGeometry(r)
+        edit.setFixedSize(r.size())
         return edit
 
     def create_hypertext_edit(self, rect: QRect | QRectF) -> HyperTextEdit:
@@ -402,7 +538,42 @@ class EditionCanvas(QWidget, IComponentGraphics):
         if isinstance(r, QRectF):
             r = r.toRect()
         edit.setGeometry(r)
+        edit.fitSize()
         return edit
+
+    def create_text(self, text: string, pos: QPoint | QPointF | QRect | QRectF, font: QFont, /) -> QLabel:
+        """
+        See two overloads of the method IComponentGraphics.create_text(text, position) and
+        IComponentGraphics.create(text, rect) in the super class.
+        """
+        if isinstance(pos, (QPoint, QPointF)):  # create_text(text, position)
+            if isinstance(pos, QPoint):
+                pos = QPointF(pos)
+            tm = TextMeasure(font, text)
+            pos = QRectF(pos.x(), pos.y() + tm.ascent, tm.width, tm.height)
+
+        if isinstance(pos, QRect):
+            pos = QRectF(pos)
+        label = QLabel(text, self)
+        pos = self._absolute_rect(pos)
+        self._register_widget(label, EditionCanvas.WidgetAnnotation(pos))
+        EditionCanvas.translate_rect(r := pos.__copy__(), self)
+        if isinstance(r, QRectF):
+            r = r.toRect()
+        label.setGeometry(r)
+        label.setFixedSize(r.size())
+        return label
+
+    def create_native_label(self, text: string, font: QFont) -> QLabel:
+        """
+        Create a native ``QLabel`` widget.
+        See IComponentGraphics.create_native_label(text, font).
+        """
+        tm = TextMeasure(font, text)
+        label = QLabel(text, self)
+        label.setFont(font)
+        label.setFixedSize(ceil(tm.width), ceil(tm.height))
+        return label
 
     def move_widget(self, widget: QWidget, dx: int, dy: int) -> void:
         """
@@ -410,7 +581,7 @@ class EditionCanvas(QWidget, IComponentGraphics):
         See IComponentGraphics.move_widget(widget, dx, dy).
         """
         widget.move(widget.x() + dx, widget.y() + dy)
-        if key := EditionCanvas._widget_hash(widget) in self.widgets:
+        if (key := EditionCanvas._widget_hash(widget)) in self.widgets:
             w, a = self.widgets[key]
             a.rect.setX(a.rect.x() + dx)
             a.rect.setY(a.rect.y() + dy)
@@ -424,11 +595,19 @@ class EditionCanvas(QWidget, IComponentGraphics):
         target = self._absolute_point(QPoint(x, y)).toPoint()
         if target != widget.pos():
             widget.move(target)
-        if key := EditionCanvas._widget_hash(widget) in self.widgets:
+        if (key := EditionCanvas._widget_hash(widget)) in self.widgets:
             w, a = self.widgets[key]
             a.rect.setX(x)
             a.rect.setY(y)
             self.widgets[key] = w, a
+
+    def resize_widget(self, widget: QWidget, w: int, h: int) -> void:
+        """
+        Resize a widget to the specified size.
+        See IComponentGraphics.resize_widget(widget, w, h).
+        """
+        widget.setFixedSize(w, h)
+        widget.resize(w, h)
 
     def clear(self, *, refresh: bool = False) -> void:
         """
@@ -445,11 +624,32 @@ class EditionCanvas(QWidget, IComponentGraphics):
         See IComponentGraphics.alloc_color().
         """
         env = Environment.instance()
-        idx = env.rt.get('theme.current_color', 0)
-        color = env.theme.colors.components[idx]
-        idx = (idx + 1) % len(env.theme.colors.components)
+        idx = env.rt.get('theme.current_color', (0, 0))
+        color = env.theme.colors.components[idx[0]][idx[1]]
+        idx = (idx[0] + 1) % len(env.theme.colors.components), 0
         env.rt['theme.current_color'] = idx
         return color
+
+    def next_color(self) -> QColor:
+        """
+        Acquire next color in the current level as theme color of a component.
+        See IComponentGraphics.next_color().
+        """
+        env = Environment.instance()
+        idx = env.rt.get('theme.current_color', (0, 0))
+        idx = idx[0], (idx[1] + 1) % len(env.theme.colors.components[idx[0]])
+        color = env.theme.colors.components[idx[0]][idx[1]]
+        env.rt['theme.current_color'] = idx
+        return color
+
+    @property
+    def client_rect(self) -> QRectF:
+        """
+        See property IComponentInterface.client_rect().
+        """
+        w = self.size().width() - self._current_anchor.x()
+        h = self.size().height() - self._current_anchor.y()
+        return QRectF(self._current_anchor.x(), self._current_anchor.y(), w, h)
 
     def delete_widget(self, widget: QWidget) -> void:
         """
@@ -459,9 +659,20 @@ class EditionCanvas(QWidget, IComponentGraphics):
         del self.widgets[EditionCanvas._widget_hash(widget)]
         widget.deleteLater()
 
+    def refresh(self) -> void:
+        """
+        Request the canvas to repaint the whole content as soon as possible.
+        See IComponentGraphics.refresh().
+        """
+        self.update()
+
     def resizeEvent(self, event: QResizeEvent, /) -> void:
         for w, a in self.widgets.values():
             rect = a.rect.__copy__()
             EditionCanvas.translate_rect(rect, self)
             if rect != a.rect:  # Needs updating geometry
                 w.setGeometry(rect.toRect())
+
+        # for inter in self.components:
+        #     inter.paint(self, False)
+        self.update()
