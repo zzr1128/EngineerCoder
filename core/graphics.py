@@ -7,6 +7,7 @@ from PySide6.QtGui import QColor, QFont, QFontMetrics, QFontMetricsF
 from PySide6.QtWidgets import QWidget, QLineEdit, QTextEdit, QLabel
 
 from alias import *
+from alias import Nullable
 
 
 @final
@@ -78,18 +79,54 @@ class IComponentGraphics:
 
     @pure_virtual
     def push_anchor(self, anchor: QPointF) -> void:
+        """
+        Push an anchor point into the anchor_stack.
+
+        The position of the anchor is relative to that of the previous one (or topleft of the
+        client area if anchor_stack is empty).
+        When locating a position or figure, the anchor is taken as the origin.
+
+        :param anchor: the anchor point to be pushed
+        """
         raise NotImplementedError
 
     @pure_virtual
     def pop_anchor(self) -> void:
+        """
+        Pop the last anchor point from the anchor_stack.
+        """
         raise NotImplementedError
 
     @pure_virtual
     def move_anchor(self, dx: int | float, dy: int | float) -> void:
+        """
+        Move the current anchor point by the specified offset.
+        :param dx: horizontal offset
+        :param dy: vertical offset
+        """
         raise NotImplementedError
 
     @pure_virtual
     def external_anchor(self) -> QPointF:
+        """
+        Get the accumulated anchor point except the current one.
+        """
+        raise NotImplementedError
+
+    @pure_virtual
+    def push_right_occupation(self, width: int | float) -> void:
+        """
+        Push right occupation of the current anchor.
+        When acquiring the client rectangle, the pushed occupation is not contained.
+        :param width: occupied width
+        """
+        raise NotImplementedError
+
+    @pure_virtual
+    def pop_occupation(self) -> void:
+        """
+        Pop the last occupation pushed.
+        """
         raise NotImplementedError
 
     @pure_virtual
@@ -369,7 +406,7 @@ class IComponentGraphics:
 
     # Implementation of overloads
     @pure_virtual
-    def create_text(self, text: string, pos: QPoint | QPointF | QRect | QRectF, font: QFont, /) -> QLabel:
+    def create_text(self, text: string, pos_or_font: QPoint | QPointF | QRect | QRectF, font: QFont, /) -> QLabel:
         raise NotImplementedError
 
     @pure_virtual
@@ -380,6 +417,15 @@ class IComponentGraphics:
         :param font: font of the label
 
         This method will automatically compute the size of the label.
+        """
+        raise NotImplementedError
+
+    @pure_virtual
+    def label_metric_width(self, label: QLabel, *, modify: bool = False) -> int:
+        """
+        Get the metric width of the label text.
+        :param label: the label widget that contains text
+        :param modify: when ``True``, modify the label text to be the metric width
         """
         raise NotImplementedError
 

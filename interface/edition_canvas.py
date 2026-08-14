@@ -9,6 +9,7 @@ from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QPainterPath, Q
 from PySide6.QtWidgets import QWidget, QTextEdit, QLineEdit, QLabel
 
 from alias import *
+from alias import Nullable
 from core.component import IComponentInterface
 from core.environment import Environment
 from core.graphics import IComponentGraphics, WrapMode
@@ -208,7 +209,8 @@ class EditionCanvas(QWidget, IComponentGraphics):
 
     def __init__(self, parent):
         super(EditionCanvas, self).__init__(parent)
-        self.stack: IList[QPointF] = []
+        self.anchor_stack: IList[QPointF] = []
+        self.width_occupy_stack: IList[float] = []
         self.painter: Nullable[QPainter] = null
         self.figures: IList[EditionCanvas.Paintable] = []
         self.widgets: IDictionary[int, tuple[QWidget, EditionCanvas.WidgetAnnotation]] = {}
@@ -234,34 +236,48 @@ class EditionCanvas(QWidget, IComponentGraphics):
     # noinspection property-definition
     @property
     def _current_anchor(self) -> QPointF:
-        if self.stack:
-            return self.stack[-1]
+        if self.anchor_stack:
+            return self.anchor_stack[-1]
         else:
             return QPointF()
 
     def push_anchor(self, anchor: QPoint | QPointF) -> void:  # Can only be called synchronously
         if isinstance(anchor, QPoint):
             anchor = QPointF(anchor)
-        self.stack.append(self._absolute_point(anchor))
+        self.anchor_stack.append(self._absolute_point(anchor))
 
     def pop_anchor(self) -> void:  # Can only be called synchronously
-        self.stack.pop()
+        self.anchor_stack.pop()
 
     def move_anchor(self, dx: int | float, dy: int | float) -> void:  # Can only be called synchronously
         """
-        Move the current anchor point.
+        Move the current anchor point by the specified offset.
         Assume there exists at least one anchor.
         """
-        p = self.stack.pop()
-        self.stack.append(QPointF(p.x() + dx, p.y() + dy))
+        p = self.anchor_stack.pop()
+        self.anchor_stack.append(QPointF(p.x() + dx, p.y() + dy))
 
     def external_anchor(self) -> QPointF:  # Can only be called synchronously
         """
-        The accumulated anchor point except the current one.
+        Get the accumulated anchor point except the current one.
         """
-        if len(self.stack) >= 2:
-            return QPointF(self.stack[-2].x(), self.stack[-2].y())
+        if len(self.anchor_stack) >= 2:
+            return QPointF(self.anchor_stack[-2].x(), self.anchor_stack[-2].y())
         return QPointF()
+
+    def push_right_occupation(self, width: int | float) -> void:  # Can only be called synchronously
+        """
+        Push right occupation of the current anchor.
+        See IComponentGraphics.push_right_occupation(width).
+        """
+        self.width_occupy_stack.append(float(width))
+
+    def pop_occupation(self) -> void:  # Can only be called synchronously
+        """
+        Pop the last occupation pushed.
+        See IComponentGraphics.pop_occupation().
+        """
+        self.width_occupy_stack.pop()
 
     @final
     def _absolute_point(self, point: QPoint | QPointF) -> QPointF:
@@ -270,11 +286,27 @@ class EditionCanvas(QWidget, IComponentGraphics):
         """
         return QPointF((self._current_anchor.x() + point.x()), (self._current_anchor.y() + point.y()))
 
-    @final
+    @overload
     def _absolute_rect(self, rect: QRect | QRectF) -> QRectF:
         """
         Absolute position and size of a rectangle relative to the anchor.
         """
+        ...
+
+    @overload
+    def _absolute_rect(self, rect: null) -> null:
+        """
+        Absolute position and size of a rectangle relative to the anchor.
+        """
+        ...
+
+    @final
+    def _absolute_rect(self, rect: Nullable[QRect | QRectF]) -> Nullable[QRectF]:
+        """
+        Absolute position and size of a rectangle relative to the anchor.
+        """
+        if rect is None:
+            return null
         if isinstance(rect, QRect):
             rect = QRectF(rect)
         return QRectF(self._absolute_point(rect.topLeft()), rect.size())
@@ -543,19 +575,22 @@ class EditionCanvas(QWidget, IComponentGraphics):
 
     def create_text(self, text: string, pos: QPoint | QPointF | QRect | QRectF, font: QFont, /) -> QLabel:
         """
-        See two overloads of the method IComponentGraphics.create_text(text, position) and
+        See three overloads of the method IComponentGraphics.create_text(text, position) and
         IComponentGraphics.create(text, rect) in the super class.
         """
-        if isinstance(pos, (QPoint, QPointF)):  # create_text(text, position)
+        if isinstance(pos, (QPoint, QPointF)):  # create_text(text, position, font)
+            assert font is not None, "Font is required"
             if isinstance(pos, QPoint):
                 pos = QPointF(pos)
             tm = TextMeasure(font, text)
             pos = QRectF(pos.x(), pos.y() + tm.ascent, tm.width, tm.height)
+        assert font is not None, "Font is required"
 
         if isinstance(pos, QRect):
             pos = QRectF(pos)
         label = QLabel(text, self)
-        pos = self._absolute_rect(pos)
+        label.setFont(font)
+        pos: QRectF = self._absolute_rect(pos)  # type: ignore
         self._register_widget(label, EditionCanvas.WidgetAnnotation(pos))
         EditionCanvas.translate_rect(r := pos.__copy__(), self)
         if isinstance(r, QRectF):
@@ -574,6 +609,18 @@ class EditionCanvas(QWidget, IComponentGraphics):
         label.setFont(font)
         label.setFixedSize(ceil(tm.width), ceil(tm.height))
         return label
+
+    def label_metric_width(self, label: QLabel, *, modify: bool = False) -> int:
+        """
+        Get the metric width of the label text.
+        See IComponentGraphics.label_metric_width()
+        """
+        tm = TextMeasure(label.font(), label.text())
+        # Advance width matches QLabel rendering; also cover trailing ink overhang
+        w = max(ceil(tm.width), ceil(tm.metrics.tightBoundingRect(label.text()).right()))
+        if modify:
+            label.setFixedWidth(w)
+        return w
 
     def move_widget(self, widget: QWidget, dx: int, dy: int) -> void:
         """
@@ -643,13 +690,17 @@ class EditionCanvas(QWidget, IComponentGraphics):
         return color
 
     @property
+    def _right_occupied(self) -> float:
+        return self.width_occupy_stack[-1] if self.width_occupy_stack else 0.
+
+    @property
     def client_rect(self) -> QRectF:
         """
         See property IComponentInterface.client_rect().
         """
         w = self.size().width() - self._current_anchor.x()
         h = self.size().height() - self._current_anchor.y()
-        return QRectF(self._current_anchor.x(), self._current_anchor.y(), w, h)
+        return QRectF(self._current_anchor.x(), self._current_anchor.y(), w - self._right_occupied, h)
 
     def delete_widget(self, widget: QWidget) -> void:
         """

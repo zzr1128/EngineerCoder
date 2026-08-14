@@ -32,6 +32,12 @@ class ComponentMetadata:
     class Delegation:
         """
         Delegation of a component.
+
+        ``Delegation`` is a class that stores all delegating implementations for a component. **Delegating implementation**
+        is 'like a component', shares the same interface with the delegated component, but supports languages the
+        original one does not.
+        When accessing implementation for a specified language, if the component primitively supports, use it; otherwise
+        search for delegating implementations. If there is one, use it; otherwise raise an error.
         """
         DelegationValidation = NewType('DelegationValidation', int)
 
@@ -83,7 +89,7 @@ class ComponentMetadata:
 
     @staticmethod
     def create(name: string, display_name: string, description: string, languages: IList[SupportedLanguage]) -> Callable[[T], T]:
-        def decorator(cls: T):
+        def decorator(cls: T) -> T:
             if hasattr(cls, 'meta') and not getattr(cls.meta, '__isabstractmethod__', False):
                 raise TypeError(f'Component "{cls}" already has metadata')
             meta = ComponentMetadata(name=name, display_name=display_name, description=description,
@@ -108,7 +114,7 @@ class Component:
 
     def __new__(cls, *args, **kwargs):
         if cls.meta() is null:
-            raise TypeError("Component cannot be instantiated for missing meta-data")
+            raise TypeError("Component cannot be instantiated missing metadata")
         return super(Component, cls).__new__(cls)
 
     def __init__(self, parent: Nullable['Component'], graphics: 'IComponentGraphics'):
@@ -130,7 +136,7 @@ class Component:
     @staticmethod
     def use__interface(cls: T) -> T:
         """
-        A decorator that use ``_interface`` feature to implement ``interface`` property.
+        A decorator that uses ``_interface`` feature to implement ``interface`` property.
         """
         if 'interface' not in cls.__dict__:  # No override for 'interface' in the wrapped class
             setattr(cls, 'interface', property(lambda self: self._interface))
@@ -143,7 +149,7 @@ class Component:
     @staticmethod
     def use__meta(cls: T) -> T:
         """
-        A decorator that use ``_meta`` feature to implement ``meta`` class method.
+        A decorator that uses ``_meta`` feature to implement ``meta`` class method.
         """
         if 'meta' not in cls.__dict__:  # No override for 'meta' in the wrapped class
             setattr(cls, 'meta', cls.impl_use__meta)

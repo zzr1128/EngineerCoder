@@ -146,6 +146,10 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
                 border-radius: 6px;
                 color: {self.env.theme.colors.foreground.name()};
             }}
+            QMainWindow QLabel {{
+                background: transparent;
+                color: {self.env.theme.colors.foreground.name()};
+            }}
         """)
 
     def setup(self) -> void:
