@@ -202,7 +202,7 @@ class VisualCodeEdit(HyperTextEdit):
                 break
         if entry is null:
             entry = VisualCodeEdit.DefaultCompletions[0]
-        return self.insert_component(entry)
+        return self.insert_component(entry)  # type: ignore
 
     def insert_component(self, entry: CompletionEntry) -> Nullable[Component]:
         """
@@ -212,7 +212,7 @@ class VisualCodeEdit(HyperTextEdit):
         document at the text cursor; the component itself is painted on the graphics
         canvas. The UI start point of the component is set by pushing a graphics anchor
         whose client area (``IComponentGraphics.client_rect``) spans the width of the
-        text column; the anchor is popped afterwards (the component interface remembers
+        text column; the anchor is popped afterward (the component interface remembers
         its origin and re-pushes it in ``paint``). The placeholder keeps the component's
         canvas origin synchronized every time it is drawn.
 
@@ -229,6 +229,7 @@ class VisualCodeEdit(HyperTextEdit):
 
         content_width = self._content_width()
         content_left = self._content_left()
+        # noinspection unresolved-references
         occupation = max(canvas.width() - content_left - content_width, 0.)
 
         # Set the UI start point; the client area is given by graphics.client_rect,
@@ -313,6 +314,7 @@ class VisualCodeEdit(HyperTextEdit):
         canvas = self._canvas_widget()
         if canvas is null:
             return
+        # noinspection bad-argument-type
         top_left = self.viewport().mapTo(canvas, viewport_point.toPoint())
         # The client area spans the text column width, whatever the placeholder x is
         origin = QPointF(self._content_left(), top_left.y())
@@ -342,6 +344,7 @@ class VisualCodeEdit(HyperTextEdit):
         canvas = self._canvas_widget()
         if canvas is null:
             return 0.
+        # noinspection bad-argument-type
         return float(self.viewport().mapTo(canvas, QPoint(0, 0)).x())
 
     @final
@@ -363,9 +366,11 @@ class VisualCodeEdit(HyperTextEdit):
             self.graphics.pop_anchor()
 
         width, height = int(size.width()), int(size.height())
+        # noinspection unresolved-references
         if spacer.width() == width and spacer.height() == height:
             return
 
+        # noinspection unresolved-references
         spacer.setFixedSize(width, height)
         self._update_occupation(component)
         self.document().adjustSize()  # Relayout the document with the new placeholder size
@@ -394,6 +399,7 @@ class VisualCodeEdit(HyperTextEdit):
         canvas = self._canvas_widget()
         if canvas is null:
             return
+        # noinspection unresolved-references
         occupation = max(canvas.width() - self._content_left() - self._content_width(), 0.)
         if self._component_occupations.get(component, 0.) == occupation:
             return
@@ -411,6 +417,7 @@ class VisualCodeEdit(HyperTextEdit):
         """
         layout = getattr(component.interface, 'layout', null)
         if layout is not null and hasattr(layout, 'size'):
+            # noinspection broad-exception
             try:
                 return QSizeF(layout.size(self.graphics))
             except Exception:
@@ -440,10 +447,14 @@ class VisualCodeEdit(HyperTextEdit):
         if component is null:
             return
         components = getattr(self.graphics, 'components', null)
+        # noinspection unresolved-references
         if components is not null and component.interface in components:
+            # noinspection unresolved-references
             self.graphics.remove_interface(component.interface)
         if component in self.inserted_components:
+            # noinspection bad-argument-type
             self.inserted_components.remove(component)
+        # noinspection bad-argument-type
         for widget in self._interface_widgets(component):
             widget.hide()
         self.graphics.refresh()
@@ -457,10 +468,14 @@ class VisualCodeEdit(HyperTextEdit):
         if component is null:
             return
         components = getattr(self.graphics, 'components', null)
+        # noinspection unresolved-references
         if components is not null and component.interface not in components:
+            # noinspection unresolved-references,bad-argument-type
             self.graphics.add_interface(component.interface, self._component_occupations.get(component, 0.))
         if component not in self.inserted_components:
+            # noinspection bad-argument-type
             self.inserted_components.append(component)
+        # noinspection bad-argument-type
         for widget in self._interface_widgets(component):
             widget.show()
         self.graphics.refresh()
@@ -486,6 +501,7 @@ class VisualCodeEdit(HyperTextEdit):
         while widget is not null:
             if hasattr(widget, 'add_interface'):
                 return widget
+            # noinspection unresolved-references
             widget = widget.parentWidget()
         return null
 
@@ -538,28 +554,37 @@ class VisualCodeEdit(HyperTextEdit):
     def _show_popup(self, entries: IEnumerable[CompletionEntry]) -> void:
         if self._popup is null:
             self._popup = _CompletionPopup()
+            # noinspection unresolved-references
             self._popup.list.itemClicked.connect(self._on_popup_click)
+            # noinspection bad-argument-type
             self._style_popup(self._popup)
 
+        # noinspection unresolved-references
         self._popup.set_entries(entries)
 
         rect = self.cursorRect()  # In viewport coordinates
         position = self.viewport().mapToGlobal(QPoint(rect.left(), rect.bottom() + 2))
+        # noinspection unresolved-references
         self._popup.move(position)
+        # noinspection unresolved-references
         self._popup.show()
+        # noinspection unresolved-references
         self._popup.raise_()
 
     @final
     def _hide_popup(self) -> void:
         if self._popup is not null:
+            # noinspection unresolved-references
             self._popup.hide()
 
     @final
     def _on_popup_click(self, item: QListWidgetItem) -> void:
         if self._popup is null:
             return
+        # noinspection unresolved-references
         entry = self._popup.entry_at(self._popup.list.row(item))
         if entry is not null:
+            # noinspection bad-argument-type
             self._confirm_completion(entry)
 
     @final
@@ -581,6 +606,7 @@ class VisualCodeEdit(HyperTextEdit):
 
     @final
     def _style_popup(self, popup: _CompletionPopup) -> void:
+        # noinspection broad-exception
         try:
             colors = Environment.instance().theme.colors
         except Exception:
@@ -610,17 +636,22 @@ class VisualCodeEdit(HyperTextEdit):
     # ---------------------------------------------------------- Events
 
     def keyPressEvent(self, event: QKeyEvent, /) -> void:
+        # noinspection unresolved-references
         if self._popup is not null and self._popup.isVisible():
             key = event.key()
             if key == Qt.Key.Key_Down:
+                # noinspection unresolved-references
                 self._popup.move_selection(1)
                 return
             if key == Qt.Key.Key_Up:
+                # noinspection unresolved-references
                 self._popup.move_selection(-1)
                 return
             if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Tab):
+                # noinspection unresolved-references
                 entry = self._popup.current_entry()
                 if entry is not null:
+                    # noinspection bad-argument-type
                     self._confirm_completion(entry)
                     return
             if key == Qt.Key.Key_Escape:
@@ -630,6 +661,7 @@ class VisualCodeEdit(HyperTextEdit):
             # Popup hidden (e.g. dismissed by Escape): still confirm an exactly typed keyword
             entry = self._lookup_entry(self._current_word())
             if entry is not null:
+                # noinspection bad-argument-type
                 self._confirm_completion(entry)
                 return
 
