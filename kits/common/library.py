@@ -84,7 +84,8 @@ class CLLibrary:
 
             Parameters ``width`` and ``height`` is **declared**, which means they are not absolutely equal to the real
             size of the widget. Usually, when they are positive, the values equalize to the widget size; otherwise,
-            the values are relative to the parent client rectangle.
+            the values are relative to the parent client rectangle. Specially, when they are null, ``width()`` and
+            ``height()`` of the widget is used.
 
             This triggers invalidation of computed geometries.
 
@@ -198,12 +199,15 @@ class CLLibrary:
             box_width = 0.
             for line in lines:
                 width = self.margin
-                line_height = 0.
+                line_height = max((element.height for element in line), default=0.)
                 for element in line:
-                    element_width = container.width() - width if element.width <= CLLibrary.GLinearLayout.FillWidth else element.width
-                    self._geometries.append(QRectF(width, height, element_width, element.height))
+                    if element.width <= CLLibrary.GLinearLayout.FillWidth:
+                        element_width = max(element.width + container.width() - width - self.margin, 0.)
+                    else:
+                        element_width = element.width
+                    self._geometries.append(QRectF(width, height + (line_height - element.height) / 2,
+                                                   element_width, element.height))
                     width += element_width + self.horizonal_padding
-                    line_height = max(line_height, element.height)
                 height += line_height + self.vertical_padding
                 box_width = max(box_width, width + self.margin - self.horizonal_padding)
             box_height = height + self.margin - self.vertical_padding

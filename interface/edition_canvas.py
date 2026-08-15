@@ -15,6 +15,7 @@ from core.environment import Environment
 from core.graphics import IComponentGraphics, WrapMode
 from core.hyper_text_edit import HyperTextEdit
 from graphics import TextMeasure
+from interface.visual_code_edit import VisualCodeEdit
 
 
 class EditionCanvas(QWidget, IComponentGraphics):
@@ -209,18 +210,27 @@ class EditionCanvas(QWidget, IComponentGraphics):
 
     def __init__(self, parent):
         super(EditionCanvas, self).__init__(parent)
+        # The canvas never fills its own background: filling uses the palette's Window
+        # role (the dark system color on dark-mode systems), which would cover the tab
+        # page background underneath. Stylesheet matches during reparenting may silently
+        # turn auto-fill on, so keep it off explicitly
+        self.setAutoFillBackground(False)
         self.anchor_stack: IList[QPointF] = []
         self.width_occupy_stack: IList[float] = []
         self.painter: Nullable[QPainter] = null
         self.figures: IList[EditionCanvas.Paintable] = []
         self.widgets: IDictionary[int, tuple[QWidget, EditionCanvas.WidgetAnnotation]] = {}
         self.components: IList[IComponentInterface] = []
+        self.interface_occupations: IDictionary[IComponentInterface, float] = {}
+        self._content_height: int = 0  # Height needed to show every widget (drives scrolling)
 
-    def add_interface(self, component: IComponentInterface) -> void:
+    def add_interface(self, component: IComponentInterface, right_occupation: int | float = 0.) -> void:
         self.components.append(component)
+        self.interface_occupations[component] = float(right_occupation)
 
     def remove_interface(self, component: IComponentInterface) -> void:
         self.components.remove(component)
+        self.interface_occupations.pop(component, null)
 
     def paintEvent(self, event: QPaintEvent, /) -> null:
         # When interface updates, remember to update in resizeEvent
@@ -229,9 +239,17 @@ class EditionCanvas(QWidget, IComponentGraphics):
                 figure.paint(self.painter)  # type: ignore (not null)
 
             for inter in self.components:
+                # Narrow the client area of the interface by its right occupation while painting
+                occupation = self.interface_occupations.get(inter, 0.)
+                if occupation > 0:
+                    self.push_right_occupation(occupation)
                 inter.paint(self)
+                if occupation > 0:
+                    self.pop_occupation()
 
         self.painter = null
+        # Painting relocates widgets (layout.update); keep the extent in sync afterwards
+        self._update_extent()
 
     # noinspection property-definition
     @property
@@ -541,6 +559,7 @@ class EditionCanvas(QWidget, IComponentGraphics):
             r = r.toRect()
         edit.setGeometry(r)
         edit.setFixedSize(r.size())
+        edit.show()  # Widgets created after the canvas is shown stay hidden unless shown explicitly
         return edit
 
     def create_textedit(self, rect: QRect | QRectF) -> QTextEdit:
@@ -556,6 +575,7 @@ class EditionCanvas(QWidget, IComponentGraphics):
             r = r.toRect()
         edit.setGeometry(r)
         edit.setFixedSize(r.size())
+        edit.show()  # Widgets created after the canvas is shown stay hidden unless shown explicitly
         return edit
 
     def create_hypertext_edit(self, rect: QRect | QRectF) -> HyperTextEdit:
@@ -571,6 +591,25 @@ class EditionCanvas(QWidget, IComponentGraphics):
             r = r.toRect()
         edit.setGeometry(r)
         edit.fitSize()
+        edit.show()  # Widgets created after the canvas is shown stay hidden unless shown explicitly
+        return edit
+
+    def create_visual_code_edit(self, rect: QRect | QRectF) -> VisualCodeEdit:
+        """
+        Create a visual-code edit control at the specified offset relative to the anchor point.
+        See IComponentGraphics.create_visual_code_edit(rect).
+        """
+        edit = VisualCodeEdit(self, self)
+        rect = self._absolute_rect(rect)
+        self._register_widget(edit, EditionCanvas.WidgetAnnotation(rect))
+        EditionCanvas.translate_rect(r := rect.__copy__(), self)
+        if isinstance(r, QRectF):
+            r = r.toRect()
+        edit.setGeometry(r)
+        edit.fitSize()
+        # Growing/shrinking edits change the height needed by the canvas contents
+        edit.layoutSpaceChanged.connect(self._update_extent)
+        edit.show()  # Widgets created after the canvas is shown stay hidden unless shown explicitly
         return edit
 
     def create_text(self, text: string, pos: QPoint | QPointF | QRect | QRectF, font: QFont, /) -> QLabel:
@@ -597,6 +636,7 @@ class EditionCanvas(QWidget, IComponentGraphics):
             r = r.toRect()
         label.setGeometry(r)
         label.setFixedSize(r.size())
+        label.show()  # Widgets created after the canvas is shown stay hidden unless shown explicitly
         return label
 
     def create_native_label(self, text: string, font: QFont) -> QLabel:
@@ -608,6 +648,7 @@ class EditionCanvas(QWidget, IComponentGraphics):
         label = QLabel(text, self)
         label.setFont(font)
         label.setFixedSize(ceil(tm.width), ceil(tm.height))
+        label.show()  # Widgets created after the canvas is shown stay hidden unless shown explicitly
         return label
 
     def label_metric_width(self, label: QLabel, *, modify: bool = False) -> int:
@@ -709,6 +750,24 @@ class EditionCanvas(QWidget, IComponentGraphics):
         """
         del self.widgets[EditionCanvas._widget_hash(widget)]
         widget.deleteLater()
+        self._update_extent()
+
+    @final
+    def _update_extent(self) -> void:
+        """
+        Recompute the height needed to show every widget on the canvas and keep the
+        minimum height in sync: when the canvas sits inside a resizable ``QScrollArea``,
+        the area grows the canvas (showing a page scrollbar) whenever the minimum height
+        exceeds the viewport, and shrinks it back when the contents shrink.
+        """
+        bottom = 0
+        for w, a in self.widgets.values():
+            bottom = max(bottom, w.y() + w.height())
+        needed = bottom + 40  # Keep some space below the last widget
+        if needed == self._content_height:
+            return
+        self._content_height = needed
+        self.setMinimumHeight(needed)
 
     def refresh(self) -> void:
         """
@@ -721,9 +780,12 @@ class EditionCanvas(QWidget, IComponentGraphics):
         for w, a in self.widgets.values():
             rect = a.rect.__copy__()
             EditionCanvas.translate_rect(rect, self)
-            if rect != a.rect:  # Needs updating geometry
+            # Apply the geometry whenever it differs from the widget's actual one
+            # (QWidget.resize alone is a no-op when the size is unchanged)
+            if rect.toRect() != w.geometry():
                 w.setGeometry(rect.toRect())
 
         # for inter in self.components:
         #     inter.paint(self, False)
         self.update()
+        self._update_extent()

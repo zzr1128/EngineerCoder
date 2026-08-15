@@ -62,13 +62,23 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
         # Test code
         self.env.import_kit(r'kits/common')
         tab = self.create_canvas('TestTab')
-        self.tabWidget_editor.setCurrentWidget(canvas := self.canvas(tab))
+        canvas = self.canvas(tab)
+        # The tab widget is the scroll area wrapping the canvas (through its viewport)
+        container: Nullable[QWidget] = canvas
+        while container is not null and not isinstance(container, QScrollArea):
+            container = container.parentWidget()
+        self.tabWidget_editor.setCurrentWidget(container)
         # canvas.create_lineedit(QRectF(0, 0, 100, 20))
         comp_meta = self.env.kit_manager.lookup('clk.br')
         comp = comp_meta.component_type(null, canvas)
         canvas.add_interface(comp.interface)
         self.script = Script(comp)
         # comp.interface.paint(canvas)
+        # Visual code edit: type e.g. "if" and press Enter to insert a Branch component
+        # inline into the text. Non-positive width extends the edit to the canvas right edge,
+        # so inserted components align with the text column.
+        # code_edit = canvas.create_visual_code_edit(QRectF(30, 280, 0, 30))
+        # code_edit.setFocus()
 
     def canvas(self, handler: 'EditorWindow.TabHandler') -> EditionCanvas:
         return self.tabs[handler]
@@ -92,6 +102,10 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
 
     def set_style(self):
         tp = QColor.fromRgb(self.env.theme.colors.tertiary.rgb() // 2 + self.env.theme.colors.primary.rgb() // 2)  # Mean of tertiary and primary
+        # Translucent background for visual code edits, so that components painted
+        # on the canvas underneath remain visible through the edit
+        vce_bg = QColor(self.env.theme.colors.tertiary)
+        vce_bg.setAlpha(100)
         self.dockWidgetContents_comp.setBackgroundColor(self.env.theme.colors.side)
         self.dockWidgetContents_details.setBackgroundColor(self.env.theme.colors.side)
         self.setStyleSheet(f"""
@@ -146,6 +160,37 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
                 border-radius: 6px;
                 color: {self.env.theme.colors.foreground.name()};
             }}
+            QMainWindow VisualCodeEdit {{
+                background-color: {vce_bg.name(QColor.NameFormat.HexArgb)};
+                border-radius: 6px;
+                color: {self.env.theme.colors.foreground.name()};
+            }}
+            /* The canvas scroll area needs a solid background: 'transparent' is not
+               composited on opaque native windows and shows up as black on Windows */
+            QScrollArea#canvasScrollArea {{
+                background-color: {self.env.theme.colors.secondary.name()};
+                border: none;
+                border-radius: 6px;
+            }}
+            /* The viewport is a separate widget layer; give it the same solid color */
+            QScrollArea#canvasScrollArea > QWidget {{
+                background-color: {self.env.theme.colors.secondary.name()};
+                border-radius: 6px;
+            }}
+            QScrollArea#canvasScrollArea QScrollBar:vertical {{
+                background: transparent;
+                width: 10px;
+                margin: 2px;
+            }}
+            QScrollArea#canvasScrollArea QScrollBar::handle:vertical {{
+                background: {self.env.theme.colors.tertiary.name()};
+                border-radius: 4px;
+                min-height: 24px;
+            }}
+            QScrollArea#canvasScrollArea QScrollBar::add-line:vertical,
+            QScrollArea#canvasScrollArea QScrollBar::sub-line:vertical {{
+                height: 0px;
+            }}
             QMainWindow QLabel {{
                 background: transparent;
                 color: {self.env.theme.colors.foreground.name()};
@@ -171,8 +216,22 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
 
     def create_canvas(self, title: string) -> TabHandler:
         handler = EditorWindow.TabHandler.allocate(title)
-        canvas = EditionCanvas(self.tabWidget_editor)
-        self.tabWidget_editor.addTab(canvas, title)
+        # The canvas grows with its contents; the scroll area provides the page scrollbar
+        # (a single scrollbar for the whole tab, never per-component scrollbars)
+        scroll = QScrollArea(self.tabWidget_editor)
+        scroll.setObjectName('canvasScrollArea')
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        # QScrollArea.setWidget turns autoFillBackground on for the scrolled widget,
+        # which would fill the canvas with the palette's Window role (the dark system
+        # color on dark-mode systems); the canvas must stay background-less so that the
+        # styled viewport color underneath shows through
+        canvas = EditionCanvas(scroll.viewport())
+        scroll.setWidget(canvas)
+        canvas.setAutoFillBackground(False)
+        self.tabWidget_editor.addTab(scroll, title)
         self.register_canvas(handler, canvas)
         return handler
 

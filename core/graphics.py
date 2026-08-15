@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import enum
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QPoint, QRect, Qt, QRectF, QPointF
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QFontMetricsF
@@ -8,6 +9,9 @@ from PySide6.QtWidgets import QWidget, QLineEdit, QTextEdit, QLabel
 
 from alias import *
 from alias import Nullable
+
+if TYPE_CHECKING:
+    from core.component import IComponentInterface
 
 
 @final
@@ -382,6 +386,14 @@ class IComponentGraphics:
         """
         raise NotImplementedError
 
+    @pure_virtual
+    def create_visual_code_edit(self, rect: QRect | QRectF) -> '__import__("interface.visual_code_edit").VisualCodeEdit':
+        """
+        Create a visual-code edit control at the specified offset relative to the anchor point.
+        :param rect: offset position and size
+        """
+        raise NotImplementedError
+
     @overload
     @pure_virtual
     def create_text(self, text: string, rect: QRect | QRectF, font: QFont, /) -> QLabel:
@@ -497,5 +509,25 @@ class IComponentGraphics:
         Request the canvas to repaint the whole content as soon as possible.
         Use this when the visual content becomes stale without any widget geometry change
         covering the dirty region (e.g. layout space of a component changed).
+        """
+        raise NotImplementedError
+
+    @pure_virtual
+    def add_interface(self, component: 'IComponentInterface', right_occupation: int | float = 0.) -> void:
+        """
+        Register a component interface so that it will be painted on the graphics canvas.
+        :param component: the component interface to add
+        :param right_occupation: right occupation of the client area of the interface; while the
+            interface is painted, the client rectangle it acquires is narrowed by this width.
+            This is used when the interface is placed inline inside another widget (e.g. a
+            visual code edit) whose column does not extend to the right edge of the canvas.
+        """
+        raise NotImplementedError
+
+    @pure_virtual
+    def remove_interface(self, component: 'IComponentInterface') -> void:
+        """
+        Unregister a component interface so that it will no longer be painted.
+        :param component: the component interface to remove
         """
         raise NotImplementedError

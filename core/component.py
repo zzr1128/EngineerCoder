@@ -2,6 +2,8 @@
 
 from dataclasses import dataclass
 
+from PySide6.QtCore import QPointF
+
 from alias import *
 from alias import IList
 from core.build import Compiler
@@ -16,7 +18,10 @@ class IComponentInterface(abstract):
 
     def __init__(self, graphics: IComponentGraphics):
         maybe_unused(graphics)
-        pass
+        # UI origin of the interface, in absolute coordinates of the graphics canvas.
+        # Implementations should push it as anchor at the beginning of ``paint``
+        # and pop it before returning, so that figures are located correctly.
+        self.origin: QPointF = QPointF()
 
     @pure_virtual
     def paint(self, graphics: IComponentGraphics, painting: bool = True) -> void:  # To be overridden

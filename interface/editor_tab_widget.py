@@ -16,6 +16,9 @@ class EditorTabWidget(QTabWidget):
         self.editor = editor
 
     def onRemoveTab(self, index: int) -> void:
-        canvas: EditionCanvas = cast(EditionCanvas, self.widget(index))
+        # The tab widget is the scroll area wrapping the canvas
+        container = self.widget(index)
+        canvas = container.findChild(EditionCanvas) if container is not null else null
         self.removeTab(index)
-        self.editor.remove_canvas(canvas)
+        if canvas is not null:
+            self.editor.remove_canvas(canvas)

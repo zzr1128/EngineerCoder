@@ -27,7 +27,11 @@ class Environment:
 
     @classmethod
     def instance(cls) -> 'Environment':
-        return cls()
+        # Do NOT call cls() when the instance already exists: __init__ would run
+        # again and wipe the runtime state (kit manager, theme cache, rt store).
+        if cls._instance is null:
+            return cls()
+        return cls._instance
 
     class SatisfactionError(enum.IntEnum):
         SATISFIED = 0
