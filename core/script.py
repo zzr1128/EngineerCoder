@@ -3,7 +3,9 @@
 from pathlib import Path
 
 from alias import *
-from component import Component
+from core.component import Component
+from core.graphics import IComponentGraphics
+from core.kit import KitManager
 
 
 class Script:
@@ -15,14 +17,33 @@ class Script:
         self.path: Nullable[Path] = null
 
     def __serialize__(self) -> IDictionary[string, Any]:
+        # noinspection bad-argument-type
         return {
-            'path': str(self.path),
-            'component': serialize(self.tu),
+            'path': str(self.path) if self.path is not null else null,
+            # The component archive carries its complete name, because restoring
+            # it requires resolving the component type through the kit manager
+            'component': {
+                'name': KitManager.instance().full_name(self.tu),
+                'data': serialize(self.tu),
+            },
         }
 
     @classmethod
-    def __deserialize__(cls, data: IDictionary[string, Any]) -> Self:
+    def restore(cls, data: IDictionary[string, Any], kit_manager: KitManager,
+                graphics: IComponentGraphics) -> Self:
+        """
+        Restore a script from its serialization.
+        Counterpart of ``__serialize__``; the component tree is reconstructed through
+        ``Component.restore`` with the UI context (graphics) it requires.
+        :param data: serialization produced by ``__serialize__``
+        :param kit_manager: kit manager used to resolve the component type
+        :param graphics: graphics interface of the canvas the script is restored on
+        :return: the restored script
+        """
         require_member(data, 'path', 'component')
-        script = cls(deserialize(Component, data['component']))
-        script.path = Path(data['path'])
+        component = data['component']
+        require_member(component, 'name', 'data')
+        meta = kit_manager.lookup(component['name'])
+        script = cls(meta.component_type.restore(component['data'], null, graphics))
+        script.path = Path(data['path']) if data['path'] is not null else null
         return script

@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 
 from alias import *
-from core.kit import Kit
+from core.graphics import IComponentGraphics
+from core.kit import Kit, KitManager
 from core.meta import SupportedLanguage
 from core.script import Script
 
@@ -24,9 +25,14 @@ class Project:
         }
 
     @classmethod
-    def __deserialize__(cls, data: IDictionary[string, Any]) -> Self:
+    def restore(cls, data: IDictionary[string, Any], kit_manager: KitManager,
+                graphics: IComponentGraphics) -> Self:
         """
-        **Attention**: Deserialized ``required_kits`` field is of type IList[string],
+        Restore a project from its serialization.
+        Counterpart of ``__serialize__``; scripts carry component trees, whose
+        restoration requires the UI context (graphics) of a canvas.
+
+        **Attention**: Restored ``required_kits`` field is of type IList[string],
         and requires further ``Kit`` resolution.
         """
         if not isinstance(data, dict):
@@ -38,6 +44,6 @@ class Project:
         require_type(data['required_kits'], list)
         require_type(data['scripts'], list)
         proj = Project(name, lang)
-        proj.scripts = [deserialize(Script, script) for script in data['scripts']]
+        proj.scripts = [Script.restore(script, kit_manager, graphics) for script in data['scripts']]
         proj.required_kits = [kit for kit in data['required_kits']]
         return proj

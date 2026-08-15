@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 
 from dataclasses import dataclass
+from math import ceil
 
-from PySide6.QtCore import Qt, QPoint, QPointF, QRect, QRectF, QSize, QSizeF, QTimer, Signal
-from PySide6.QtGui import (QFocusEvent, QKeyEvent, QMouseEvent, QPainter, QResizeEvent,
-                           QTextCharFormat, QTextCursor, QTextDocument, QTextFormat)
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QWidget
+from PySide6.QtCore import QEvent, QObject, Qt, QPoint, QPointF, QRect, QRectF, QSize, QSizeF, QTimer, Signal
+from PySide6.QtGui import (QColor, QFocusEvent, QFontMetricsF, QKeyEvent, QMouseEvent, QMoveEvent, QPainter,
+                           QResizeEvent, QTextCharFormat, QTextCursor, QTextDocument, QTextFormat)
+from PySide6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
+                               QWidget)
 
 from alias import *
 from alias import Nullable
@@ -172,6 +174,14 @@ class VisualCodeEdit(HyperTextEdit):
     outgrow the visible area, the whole canvas scrolls (the edit itself never shows
     scrollbars, so that nested components do not scroll independently of the page).
 
+    Optionally, the edit can own its width instead of keeping the declared one
+    (see ``setAutoWidthEnabled``): the width then follows the contents — the ideal
+    (unwrapped) width of the document, reserving the width of one character when the
+    document is empty and never falling below the declared width, so that contents
+    shorter than the declared row still fill it. The width is capped at the space
+    available on the canvas (from the edit's left edge to the canvas' right edge),
+    so long lines wrap instead of overflowing the canvas.
+
     The editor itself has a translucent background (styled by the application's theme
     stylesheet) so that the figures painted on the canvas show through.
     """
@@ -184,6 +194,16 @@ class VisualCodeEdit(HyperTextEdit):
 
     DefaultCompletions: ClassVar[IList[CompletionEntry]] = [
         CompletionEntry('if', 'clk.br'),
+        CompletionEntry('native', 'clk.native'),
+        CompletionEntry('loop', 'clk.loop'),
+        CompletionEntry('for', 'clk.for'),
+        CompletionEntry('set', 'clk.assign'),
+        CompletionEntry('plus', 'clk.plus'),
+        CompletionEntry('minus', 'clk.minus'),
+        CompletionEntry('multiply', 'clk.multiply'),
+        CompletionEntry('divide', 'clk.divide'),
+        CompletionEntry('modulus', 'clk.modulus'),
+        CompletionEntry('member', 'clk.field'),
     ]
 
     # Emitted with the component name after a component is inserted from a completion.
@@ -207,6 +227,18 @@ class VisualCodeEdit(HyperTextEdit):
         self._component_occupations: IDictionary[Component, float] = {}  # Component -> right occupation
 
         self._popup: Nullable[_CompletionPopup] = null
+
+        # The inserted component currently marked as selected (deletion pending confirmation)
+        self._selected_component: Nullable[Component] = null
+        # Interface widgets of the inserted components (event-filtered) -> owning component
+        self._widget_components: IDictionary[QWidget, Component] = {}
+
+        # Width declared at creation; negative means extending to the right edge of the canvas
+        self.declared_width: float = 0.
+        self._auto_width_enabled: bool = False
+        # Space on the right of the canvas the fitting width must not enter (the right
+        # occupation of the enclosing component plus its layout margin); 0 for top-level edits
+        self._auto_width_right_inset: float = 0.
 
         # The edit grows to fit its contents without any height limit; the whole canvas
         # scrolls when the contents outgrow the visible area. Scrollbars stay off: text
@@ -303,14 +335,18 @@ class VisualCodeEdit(HyperTextEdit):
         self._spacer_components[spacer.objectName()] = component
         self._component_spacers[component] = spacer
         self._component_occupations[component] = occupation
+        self._apply_auto_width_inset(component)
         self._insert_inline_component(spacer, component, QSize(int(size.width()), int(size.height())))
         spacer.show()  # Avoid taking the undo/redo restore path on the first draw
 
         self.graphics.add_interface(component.interface, occupation)
         self.inserted_components.append(component)
 
-        # Refit the placeholder whenever the component (or its descendants) changes size
+        # Refit the placeholder whenever the component (or its descendants) changes size;
+        # watch the fields to route their Backspace/Delete through the selection
         for widget in self._interface_widgets(component):
+            self._widget_components[widget] = component
+            widget.installEventFilter(self)
             if isinstance(widget, HyperTextEdit):
                 widget.layoutSpaceChanged.connect(lambda c=component: self._refit_component(c))
 
@@ -323,6 +359,12 @@ class VisualCodeEdit(HyperTextEdit):
         cursor = self.textCursor()
         cursor.movePosition(QTextCursor.MoveOperation.PreviousCharacter)
         self._sync_component_origin(component, QPointF(self.cursorRect(cursor).topLeft()))
+
+        # Let the component's first required field take the focus; otherwise the text
+        # cursor already sits right after the inserted placeholder
+        focus_widget = component.autoFocusWidget()
+        if focus_widget is not null:
+            focus_widget.setFocus()
 
         self.componentInserted.emit(entry.component_name)
         return component
@@ -349,10 +391,13 @@ class VisualCodeEdit(HyperTextEdit):
 
         cursor = self.textCursor()
         pos = cursor.position()
+        # Insert the placeholder first: the emitted contentsChange shifts the recorded
+        # positions of the objects at or after the insertion point; the new object is
+        # recorded afterwards so that it is not shifted itself
+        cursor.insertText('\uFFFC', fmt)
         obj = HyperTextEdit._InlineObject(interface, spacer, pos)
         self.objects[spacer.objectName()] = obj
         self.displaying_objects.insert(obj)
-        cursor.insertText('\uFFFC', fmt)
         self.setTextCursor(cursor)
         self.viewport().update()
 
@@ -368,8 +413,9 @@ class VisualCodeEdit(HyperTextEdit):
             return
         # noinspection bad-argument-type
         top_left = self.viewport().mapTo(canvas, viewport_point.toPoint())
-        # The client area spans the text column width, whatever the placeholder x is
-        origin = QPointF(self._content_left(), top_left.y())
+        # The origin follows the placeholder itself: a component may sit mid-line after
+        # preceding text, and pinning it to the column's left edge would paint over that text
+        origin = QPointF(top_left)
         if component.interface.origin == origin:
             return
         if component.interface.origin.x() != origin.x():
@@ -459,6 +505,7 @@ class VisualCodeEdit(HyperTextEdit):
         occupations = getattr(self.graphics, 'interface_occupations', null)
         if occupations is not null and component.interface in occupations:
             occupations[component.interface] = occupation
+        self._apply_auto_width_inset(component)
 
     @final
     def _interface_size(self, component: Component) -> QSizeF:
@@ -533,12 +580,246 @@ class VisualCodeEdit(HyperTextEdit):
         self.graphics.refresh()
 
     def removeObject(self, widget: QWidget) -> void:
+        component = self._spacer_components.get(widget.objectName(), null)
+        if component is not null and self._selected_component is component:
+            self._selected_component = null  # The placeholder is being removed; drop the state
         self._detach_component(widget.objectName())
         super().removeObject(widget)
 
     def _restoreObject(self, widget: QWidget) -> void:
         super()._restoreObject(widget)
         self._attach_component(widget.objectName())
+
+    # ---------------------------------------------------------- Selection
+
+    def selectedComponent(self) -> Nullable[Component]:
+        """
+        :return: the inserted component currently marked as selected, or null when
+            there is none
+        """
+        return self._selected_component
+
+    def select_component(self, component: Component) -> void:
+        """
+        Mark an inserted component as selected: its inline placeholder shows the
+        theme's ``selected`` highlight. A second Backspace/Delete confirms the
+        deletion of the component; clicking elsewhere clears the selection.
+        :param component: the component to select
+        """
+        if self._selected_component is component:
+            return
+        self.clear_selection()
+        if component not in self.inserted_components:
+            return
+        spacer = self._component_spacers.get(component, null)
+        if spacer is null:
+            return
+        self._selected_component = component
+        # The placeholder overlaps the component exactly; styling it draws the
+        # highlight right over the component without touching the canvas figures
+        spacer.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        spacer.setStyleSheet(self._selection_style())
+
+    def clear_selection(self) -> void:
+        """
+        Clear the component selection, removing the highlight from its placeholder.
+        """
+        if self._selected_component is null:
+            return
+        spacer = self._component_spacers.get(self._selected_component, null)
+        if spacer is not null:
+            spacer.setStyleSheet('')
+        self._selected_component = null
+
+    @final
+    def _selection_style(self) -> string:
+        """
+        :return: the stylesheet applied to the placeholder of the selected component;
+            a translucent tint plus a frame in the theme's ``selected`` color
+        """
+        # noinspection broad-exception
+        try:
+            color = Environment.instance().theme.colors.selected
+        except Exception:
+            color = QColor('#F2994A')
+        tint = QColor(color)
+        tint.setAlpha(40)
+        return (f'background-color: {tint.name(QColor.NameFormat.HexArgb)};'
+                f'border: 2px solid {color.name()};'
+                f'border-radius: 4px;')
+
+    @final
+    def _adjacent_component(self, before: bool) -> Nullable[Component]:
+        """
+        :param before: when true, look behind the text cursor (the Backspace side);
+            otherwise look ahead of it (the Delete side)
+        :return: the component whose inline placeholder is directly adjacent to the
+            text cursor, or null when there is none (or the cursor has a selection)
+        """
+        cursor = self.textCursor()
+        if cursor.hasSelection():
+            return null
+        pos = cursor.position() - 1 if before else cursor.position()
+        if pos < 0 or self.document().characterAt(pos) != '\uFFFC':
+            return null
+        for obj in self.displaying_objects.query_by_value(pos, pos):
+            component = self._spacer_components.get(NotNull(obj.widget).objectName(), null)
+            if component is not null:
+                return component
+        return null
+
+    @final
+    def _remove_component(self, component: Component) -> void:
+        """
+        Remove the inline placeholder of a component from the document, detaching the
+        component from the canvas through the regular contents-change machinery.
+
+        The removal is a plain document edit (one object-replacement character), so it
+        participates in undo/redo: undoing restores the placeholder, and repainting
+        reattaches the component (see ``_restoreObject``).
+        """
+        self.clear_selection()
+        spacer = self._component_spacers.get(component, null)
+        if spacer is null:
+            return
+        obj = self.objects.get(spacer.objectName(), null)
+        if obj is null:
+            return
+        pos = int(obj.position)
+        # The placeholder may already be gone (e.g. removed through a wider text
+        # selection); never delete a character that is not the placeholder
+        if self.document().characterAt(pos) != '\uFFFC':
+            return
+        cursor = QTextCursor(self.document())
+        cursor.setPosition(pos)
+        cursor.movePosition(QTextCursor.MoveOperation.NextCharacter, QTextCursor.MoveMode.KeepAnchor)
+        cursor.removeSelectedText()
+        # The focus may have been inside a field of the removed component; move it
+        # here, right where the placeholder used to be
+        self.setFocus()
+        self.setTextCursor(cursor)
+
+    # ---------------------------------------------------------- Editable navigation
+
+    @final
+    def _at_editable_edge(self, widget: QWidget, forward: bool) -> bool:
+        """
+        :param widget: an editable widget of an inserted component
+        :param forward: when true, check the trailing edge (the Right key);
+            otherwise check the leading edge (the Left key)
+        :return: whether the caret of the widget sits at the specified edge; widgets
+            without a caret (e.g. check boxes) count as being at both edges
+        """
+        if isinstance(widget, HyperTextEdit):
+            cursor = widget.textCursor()
+            if cursor.hasSelection():
+                return False
+            if forward:
+                return cursor.position() == widget.document().characterCount() - 1
+            return cursor.position() == 0
+        if isinstance(widget, QLineEdit):
+            if widget.hasSelectedText():
+                return False
+            if forward:
+                return widget.cursorPosition() == len(widget.text())
+            return widget.cursorPosition() == 0
+        return True
+
+    @final
+    def _navigate_editable(self, component: Component, current: QWidget, forward: bool) -> bool:
+        """
+        Move the focus from an editable widget of a component to the adjacent one
+        (``Component.editableWidgets``); when there is no widget on the specified
+        side, the focus escapes right behind/in front of the placeholder of the
+        component in this edit.
+        :param component: the component owning the current widget
+        :param current: the editable widget holding the focus
+        :param forward: when true move rightwards, otherwise leftwards
+        :return: whether the navigation consumed the key
+        """
+        widgets = component.editableWidgets()
+        if current not in widgets:
+            return False
+        index = widgets.index(current)
+        neighbor = index + 1 if forward else index - 1
+        if 0 <= neighbor < len(widgets):
+            self._focus_editable(widgets[neighbor], at_start=forward)
+            return True
+        self._focus_beside_component(component, after=forward)
+        return True
+
+    @final
+    def _focus_editable(self, widget: QWidget, at_start: bool) -> void:
+        """
+        Focus an editable widget placing its caret at the beginning (when entering
+        from the left) or at the end (when entering from the right).
+        """
+        widget.setFocus()
+        if isinstance(widget, HyperTextEdit):
+            cursor = widget.textCursor()
+            cursor.movePosition(QTextCursor.MoveOperation.Start if at_start
+                                else QTextCursor.MoveOperation.End)
+            widget.setTextCursor(cursor)
+        elif isinstance(widget, QLineEdit):
+            widget.setCursorPosition(0 if at_start else len(widget.text()))
+
+    @final
+    def _focus_beside_component(self, component: Component, after: bool) -> void:
+        """
+        Move the focus and the text cursor of this edit right behind/in front of the
+        inline placeholder of the specified component, so the navigation continues
+        in the surrounding text.
+        """
+        spacer = self._component_spacers.get(component, null)
+        if spacer is null:
+            return
+        obj = self.objects.get(spacer.objectName(), null)
+        if obj is null:
+            return
+        cursor = self.textCursor()
+        cursor.setPosition(int(obj.position) + (1 if after else 0))
+        self.setFocus()
+        self.setTextCursor(cursor)
+
+    def eventFilter(self, watched: QObject, event: QEvent, /) -> bool:
+        """
+        Route the key interactions of the fields of the inserted components:
+
+        - Backspace/Delete of a text field go through the two-step selection:
+          Backspace at the very beginning of a field selects the component that owns
+          the field instead of doing nothing; a further Backspace/Delete confirms the
+          deletion.
+        - Left/Right at the caret edge of an editable widget (or on a caret-less one,
+          e.g. a check box) moves the focus along ``Component.editableWidgets``;
+          leaving the list escapes before/behind the component in this edit.
+
+        Any click or other key press clears an ongoing selection.
+        """
+        # noinspection bad-argument-type
+        component = self._widget_components.get(watched, null)
+        if component is not null and component in self.inserted_components:
+            if event.type() == QEvent.Type.MouseButtonPress:
+                self.clear_selection()
+            elif event.type() == QEvent.Type.KeyPress:
+                # noinspection unresolved-references
+                key = event.key()
+                if key in (Qt.Key.Key_Left, Qt.Key.Key_Right) \
+                        and event.modifiers() == Qt.KeyboardModifier.NoModifier \
+                        and self._at_editable_edge(watched, key == Qt.Key.Key_Right):
+                    self.clear_selection()
+                    return self._navigate_editable(component, watched, key == Qt.Key.Key_Right)
+                if isinstance(watched, HyperTextEdit):
+                    cursor = watched.textCursor()
+                    if key in (Qt.Key.Key_Backspace, Qt.Key.Key_Delete) and not cursor.hasSelection():
+                        if self._selected_component is component:
+                            self._remove_component(component)  # A second press confirms the deletion
+                            return True
+                        if key == Qt.Key.Key_Backspace and cursor.position() == 0:
+                            self.select_component(component)
+                            return True
+                if self._selected_component is not null:
+                    self.clear_selection()
+        return super().eventFilter(watched, event)
 
     @final
     def _canvas_widget(self) -> Nullable[QWidget]:
@@ -557,19 +838,287 @@ class VisualCodeEdit(HyperTextEdit):
             widget = widget.parentWidget()
         return null
 
+    # ---------------------------------------------------------- Auto width
+
+    def setAutoWidthEnabled(self, enabled: bool) -> void:
+        """
+        Enable or disable adapting the width of this edit to its contents.
+
+        When enabled, the width becomes the wider of the contents' ideal width
+        (the width of one character when the document is empty) and the declared
+        width, so that contents shorter than the declared row still fill it; the
+        width follows every contents change afterwards, capped at the space available
+        on the canvas (contents hitting the cap wrap instead of overflowing).
+        Disabling restores the declared width.
+        :param enabled: whether the width adapts to the contents
+        :raise ValueError: raise when enabling while the declared width is negative
+            (a negative declared width extends the edit to the right edge of the
+            canvas, which conflicts with contents-driven widths)
+        """
+        if enabled == self._auto_width_enabled:
+            return
+        if enabled and self.declared_width < 0:
+            raise ValueError('Auto width requires a non-negative declared width')
+        self._auto_width_enabled = enabled
+        if enabled:
+            self._update_auto_width()
+        elif self.declared_width > 0:
+            self.setFixedWidth(ceil(self.declared_width))
+            self.layoutSpaceChanged.emit()
+
+    def autoWidthEnabled(self) -> bool:
+        """
+        :return: whether the width of this edit adapts to its contents
+        """
+        return self._auto_width_enabled
+
+    @final
+    def _auto_width(self) -> int:
+        """
+        :return: width this edit needs to show its contents without wrapping: the
+            wider of the contents' ideal width and the declared width (empty contents
+            reserve the width of one character), capped at the space available on the
+            canvas so that overflowing contents wrap instead
+        """
+        doc = self.document()
+        text_width = doc.textWidth()
+        if text_width >= 0:  # Measure the unwrapped contents
+            doc.setTextWidth(-1)
+        ideal = doc.idealWidth()
+        if text_width >= 0:
+            doc.setTextWidth(text_width)
+        if ideal <= 0:  # Empty contents: reserve the width of one character
+            ideal = QFontMetricsF(doc.defaultFont()).averageCharWidth()
+        margins = self.viewportMargins()
+        width = max(ideal + 2 * doc.documentMargin() + margins.left() + margins.right(),
+                    self.declared_width)
+        available = self._available_width()
+        if available > 0:  # Never overflow the canvas' right edge
+            width = min(width, max(available, self.declared_width))
+        return ceil(width)
+
+    @final
+    def _available_width(self) -> float:
+        """
+        :return: width available from the left edge of this edit to the right edge
+            of the client area (the canvas' right edge minus the right inset); 0 when
+            the canvas cannot be resolved
+        """
+        canvas = self._canvas_widget()
+        if canvas is null:
+            return 0.
+        # noinspection bad-argument-type
+        left = self.mapTo(canvas, QPoint(0, 0)).x()
+        return float(max(canvas.width() - self._auto_width_right_inset - left, 0))
+
+    @final
+    def _apply_auto_width_inset(self, component: Component) -> void:
+        """
+        Bound the auto-width edits of a component at the right edge of its client area:
+        the canvas' right edge narrowed by the component's right occupation and the
+        layout margin, so the edits wrap inside the component instead of overflowing it.
+        """
+        layout = getattr(component.interface, 'layout', null)
+        margin = getattr(layout, 'margin', 0.) if layout is not null else 0.
+        inset = self._component_occupations.get(component, 0.) + margin
+        for widget in self._interface_widgets(component):
+            if isinstance(widget, VisualCodeEdit) and widget.autoWidthEnabled() \
+                    and widget._auto_width_right_inset != inset:
+                widget._auto_width_right_inset = inset
+                widget._update_auto_width()
+
+    @final
+    def _update_auto_width(self) -> void:
+        """
+        Resize this edit to fit its contents; no-op when auto width is disabled
+        or the fitting width is unchanged.
+        """
+        if not self._auto_width_enabled:
+            return
+        width = self._auto_width()
+        if self.width() == width:
+            return
+        self.setFixedWidth(width)
+        self.layoutSpaceChanged.emit()  # Let the enclosing layout follow the new width
+
+    def _on_content_change(self, pos: int, removed_count: int, added_count: int) -> void:
+        """
+        Refit the width as well whenever the contents change. See the super method.
+        """
+        super()._on_content_change(pos, removed_count, added_count)
+        self._update_auto_width()
+
+    def changeEvent(self, event: QEvent, /) -> void:
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.FontChange:
+            self._update_auto_width()
+
+    def moveEvent(self, event: QMoveEvent, /) -> void:
+        """
+        Refit the width as well whenever the edit moves: the cap follows the edit's
+        left edge (e.g. when an inline component is reflowed). See the super method.
+        """
+        super().moveEvent(event)
+        self._update_auto_width()
+
+    # ---------------------------------------------------------- Serialization
+
+    def __serialize__(self) -> IDictionary[string, Any]:
+        """
+        Serialize this edit: the document text in which each inline component
+        occupies one object-replacement character (``\\uFFFC``), together with
+        the serialized components in the order their placeholders appear.
+        :return: serialization of this edit
+        """
+        ordered = self.displaying_objects.query(minimum(HyperTextEdit._InlineObject),
+                                                maximum(HyperTextEdit._InlineObject))
+        components: IList[IDictionary[string, Any]] = []
+        for inline in ordered:
+            component = self._spacer_components.get(NotNull(inline.widget).objectName(), null)
+            if component is not null:
+                components.append({'name': Environment.instance().kit_manager.full_name(component),
+                                   'data': serialize(component)})
+        return {
+            'text': self.toPlainText(),
+            'components': components,
+        }
+
+    @classmethod
+    def restore(cls, data: IDictionary[string, Any], graphics: IComponentGraphics,
+                parent: Nullable[QWidget] = null) -> 'VisualCodeEdit':
+        """
+        Restore a fresh edit from its serialization.
+        Counterpart of ``__serialize__``; equivalent to constructing the edit
+        and ``load``-ing the archive into it.
+        :param data: serialization produced by ``__serialize__``
+        :param graphics: graphics interface of the canvas the restored edit belongs to;
+            it is supplied externally because widgets cannot be serialized
+        :param parent: parent widget of the restored edit
+        :return: the restored edit
+        """
+        edit = cls(parent, graphics)
+        edit.load(data)
+        return edit
+
+    def load(self, data: IDictionary[string, Any]) -> void:
+        """
+        Load the contents of this edit from its serialization, reconstructing each
+        inline component at its original placeholder position.
+        :param data: serialization produced by ``__serialize__``
+        :raise SerializationError: raise when required members are missing or the
+            component count mismatches the placeholders in the text
+
+        This edit must be empty: component interfaces hold references to their
+        nested edits, which cannot be replaced after construction; therefore a
+        restored archive is always loaded into a freshly constructed edit.
+        """
+        require_member(data, 'text', 'components')
+        require_type(data['text'], string, 'text')
+        require_type(data['components'], list, 'components')
+
+        edit = self
+        graphics = self.graphics
+        kit_manager = Environment.instance().kit_manager
+        text: string = data['text']
+        segments = text.split('\uFFFC')
+        if len(segments) - 1 != len(data['components']):
+            raise SerializationError('Component count mismatches the placeholders in the text')
+
+        # Rebuild the document in one pass: the treap positions are restored together
+        # with the placeholders, so detach the contentsChange bookkeeping meanwhile
+        # (its incremental position shifting would corrupt the freshly recorded positions)
+        edit.document().contentsChange.disconnect(edit._on_content_change)
+        try:
+            cursor = edit.textCursor()
+            for segment, serialized_component in zip(segments, data['components']):
+                if segment:
+                    cursor.insertText(segment)
+
+                require_member(serialized_component, 'name', 'data')
+                meta = kit_manager.lookup(serialized_component['name'])
+                # Inline components are roots of their own tree; the UI context
+                # mirrors insert_component (component_type(null, self.graphics))
+                component = meta.component_type.restore(serialized_component['data'], null, graphics)
+
+                canvas = edit._canvas_widget()
+                occupation = 0.
+                if canvas is not null:
+                    occupation = max(canvas.width() - edit._content_left() - edit._content_width(), 0.)
+
+                # Same anchor/occupation context as insert_component, so the placeholder
+                # size matches what the component occupies on the canvas
+                graphics.push_anchor(QPointF(edit._content_left(), 0.))
+                graphics.push_right_occupation(occupation)
+                try:
+                    size = edit._interface_size(component)
+                finally:
+                    graphics.pop_occupation()
+                    graphics.pop_anchor()
+
+                spacer = QWidget()
+                spacer.setObjectName(f'vce.inline.{id(component)}')
+                spacer.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+                edit._spacer_components[spacer.objectName()] = component
+                edit._component_spacers[component] = spacer
+                edit._component_occupations[component] = occupation
+                # _insert_inline_component reads the edit cursor to locate the placeholder
+                edit.setTextCursor(cursor)
+                edit._insert_inline_component(spacer, component, QSize(int(size.width()), int(size.height())))
+                spacer.show()
+                cursor = edit.textCursor()
+
+                graphics.add_interface(component.interface, occupation)
+                edit.inserted_components.append(component)
+                edit._apply_auto_width_inset(component)
+
+                # Refit the placeholder whenever the component (or its descendants) changes size;
+                # watch the fields to route their Backspace/Delete through the selection
+                for widget in edit._interface_widgets(component):
+                    edit._widget_components[widget] = component
+                    widget.installEventFilter(edit)
+                    if isinstance(widget, HyperTextEdit):
+                        widget.layoutSpaceChanged.connect(lambda c=component: edit._refit_component(c))
+
+            if segments[-1]:
+                cursor.insertText(segments[-1])
+            edit.setTextCursor(cursor)
+
+            edit.document().documentLayout().documentSize()  # Force layout before locating components
+            edit.fitSize()
+
+            # Locate each component at its placeholder
+            position = 0
+            for component in edit.inserted_components:
+                position = text.index('\uFFFC', position)  # Placeholder positions in the original text
+                sync_cursor = QTextCursor(edit.document())
+                sync_cursor.setPosition(position)
+                edit._sync_component_origin(component, QPointF(edit.cursorRect(sync_cursor).topLeft()))
+                position += 1
+        finally:
+            edit.document().contentsChange.connect(edit._on_content_change)
+
+        edit.viewport().update()
+        edit._update_auto_width()  # No-op unless auto width is enabled
+        graphics.refresh()
+
     # ---------------------------------------------------------- Completion
 
     @final
     def _current_word(self) -> string:
         """
-        :return: the word (letters, digits and underscores) ending at the text cursor
+        :return: the identifier ending at the text cursor; as identifiers cannot start
+            with a digit, leading digits (e.g. the ``111`` of ``111m``) do not belong
+            to the word
         """
         cursor = self.textCursor()
         text = cursor.block().text()[:cursor.positionInBlock()]
         i = len(text)
         while i > 0 and (text[i - 1].isalnum() or text[i - 1] == '_'):
             i -= 1
-        return text[i:]
+        word = text[i:]
+        while word and word[0].isdigit():  # Identifiers cannot start with a digit
+            word = word[1:]
+        return word
 
     @final
     def _lookup_entry(self, keyword: string) -> Nullable[CompletionEntry]:
@@ -716,23 +1265,41 @@ class VisualCodeEdit(HyperTextEdit):
             if key == Qt.Key.Key_Escape:
                 self._hide_popup()
                 return
-        elif event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
-            # Popup hidden (e.g. dismissed by Escape): still confirm an exactly typed keyword
-            entry = self._lookup_entry(self._current_word())
-            if entry is not null:
-                # noinspection bad-argument-type
-                self._confirm_completion(entry)
-                return
+        else:
+            key = event.key()
+            if key in (Qt.Key.Key_Backspace, Qt.Key.Key_Delete):
+                # A second Backspace/Delete confirms the deletion of the selected
+                # component; otherwise a Backspace/Delete adjacent to the placeholder
+                # of a component that owns fields selects the component first
+                if self._selected_component is not null:
+                    self._remove_component(self._selected_component)
+                    return
+                component = self._adjacent_component(key == Qt.Key.Key_Backspace)
+                if component is not null and component.autoFocusWidget() is not null:
+                    self.select_component(component)
+                    return
+            elif self._selected_component is not null:
+                self.clear_selection()
+
+            if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                # Popup hidden (e.g. dismissed by Escape): still confirm an exactly typed keyword
+                entry = self._lookup_entry(self._current_word())
+                if entry is not null:
+                    # noinspection bad-argument-type
+                    self._confirm_completion(entry)
+                    return
 
         super().keyPressEvent(event)
         self._update_completion()
 
     def focusOutEvent(self, event: QFocusEvent, /) -> void:
         self._hide_popup()
+        self.clear_selection()
         super().focusOutEvent(event)
 
     def mousePressEvent(self, event: QMouseEvent, /) -> void:
         self._hide_popup()
+        self.clear_selection()
         super().mousePressEvent(event)
 
     def resizeEvent(self, event: QResizeEvent, /) -> void:
@@ -741,6 +1308,9 @@ class VisualCodeEdit(HyperTextEdit):
         if event.oldSize().width() != event.size().width():
             # Keep the document layout width in sync with the new viewport width
             self.fitSize()
+            # The applied width may have come from the canvas replaying the declared
+            # geometry; the contents may need another fitting pass against the new cap
+            self._update_auto_width()
             # The canvas size may still be stale while its resizeEvent relocates this
             # edit; defer the components refitting until the geometries have settled
             QTimer.singleShot(0, self._refit_after_resize)

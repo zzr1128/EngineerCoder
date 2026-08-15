@@ -6,7 +6,7 @@ from math import ceil
 from shiboken6 import getCppPointer
 from PySide6.QtCore import Qt, QPoint, QRect, QRectF, QPointF, QLineF
 from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QPainterPath, QPaintEvent, QResizeEvent
-from PySide6.QtWidgets import QWidget, QTextEdit, QLineEdit, QLabel
+from PySide6.QtWidgets import QWidget, QTextEdit, QLineEdit, QLabel, QCheckBox
 
 from alias import *
 from alias import Nullable
@@ -601,6 +601,7 @@ class EditionCanvas(QWidget, IComponentGraphics):
         """
         edit = VisualCodeEdit(self, self)
         rect = self._absolute_rect(rect)
+        edit.declared_width = rect.width()  # Remember before translating (negative extends to the right edge)
         self._register_widget(edit, EditionCanvas.WidgetAnnotation(rect))
         EditionCanvas.translate_rect(r := rect.__copy__(), self)
         if isinstance(r, QRectF):
@@ -650,6 +651,18 @@ class EditionCanvas(QWidget, IComponentGraphics):
         label.setFixedSize(ceil(tm.width), ceil(tm.height))
         label.show()  # Widgets created after the canvas is shown stay hidden unless shown explicitly
         return label
+
+    def create_checkbox(self, text: string, font: QFont) -> QCheckBox:
+        """
+        Create a check box control.
+        See IComponentGraphics.create_checkbox(text, font).
+        """
+        box = QCheckBox(text, self)
+        box.setFont(font)
+        hint = box.sizeHint()
+        box.setFixedSize(hint.width(), hint.height())
+        box.show()  # Widgets created after the canvas is shown stay hidden unless shown explicitly
+        return box
 
     def label_metric_width(self, label: QLabel, *, modify: bool = False) -> int:
         """
@@ -779,11 +792,19 @@ class EditionCanvas(QWidget, IComponentGraphics):
     def resizeEvent(self, event: QResizeEvent, /) -> void:
         for w, a in self.widgets.values():
             rect = a.rect.__copy__()
+            auto_width = isinstance(w, VisualCodeEdit) and w.autoWidthEnabled()
+            if auto_width:
+                # The contents own the width of an auto-width edit; keep the adjusted one
+                rect.setWidth(float(w.width()))
             EditionCanvas.translate_rect(rect, self)
             # Apply the geometry whenever it differs from the widget's actual one
             # (QWidget.resize alone is a no-op when the size is unchanged)
             if rect.toRect() != w.geometry():
                 w.setGeometry(rect.toRect())
+            if auto_width:
+                # The canvas width entered the fitting cap; recheck the fitting width
+                # noinspection PyProtectedMember
+                w._update_auto_width()
 
         # for inter in self.components:
         #     inter.paint(self, False)

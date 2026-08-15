@@ -9,6 +9,7 @@ from types import ModuleType
 
 from alias import *
 from core.component import Component, ComponentMetadata, ComponentDelegation, ComponentTy
+from core.graphics import IComponentGraphics
 from core.meta import Version, SupportedLanguage, AuthorInfo
 
 
@@ -236,6 +237,14 @@ class KitManager:
             cls._instance = super().__new__(cls)
         return cls._instance
 
+    @classmethod
+    def instance(cls) -> Self:
+        # Do NOT call cls() when the instance already exists: __init__ would run
+        # again and wipe the registered kits (same convention as Environment.instance)
+        if cls._instance is null:
+            return cls()
+        return cls._instance
+
     class KitNotFoundError(LookupError):
         def __init__(self, kit_name: string):
             self.kit_name = kit_name
@@ -351,6 +360,18 @@ class KitManager:
         kit_name, component_name = KitManager.split_name(name)
         return self[kit_name][component_name]
 
+    def full_name(self, component: Component) -> string:
+        """
+        Inverse of ``lookup``: resolve the complete name of a registered component.
+        :param component: a component registered in some imported kit
+        :return: the complete name (in format 'kit.component') of the component
+        :raise LookupError: raise when the component does not belong to any imported kit
+        """
+        for kit in self:
+            if component.meta().name in kit.components:
+                return KitManager.merge_names(kit.meta.name, component.meta().name)
+        raise LookupError(f'Component {component.meta().name} does not belong to any imported kit')
+
     def _resolve_delegation(self, delegation: typeof[ComponentDelegation[ComponentTy]]) -> void:
         """
         Resolve a component delegation and register it to its target component.
@@ -376,32 +397,36 @@ class KitManager:
 
 
     @overload
-    def create_component(self, parent: Nullable[Component], name: string, /) -> Component:
+    def create_component(self, parent: Nullable[Component], graphics: IComponentGraphics, name: string, /) -> Component:
         """
         Create a component by name.
         :param parent: the parent component
+        :param graphics: graphics interface of the canvas the component belongs to
         :param name: complete name of the component
         :return: the component object
         """
         ...
 
     @overload
-    def create_component(self, parent: Nullable[Component], meta: ComponentMetadata, /) -> Component:
+    def create_component(self, parent: Nullable[Component], graphics: IComponentGraphics,
+                         meta: ComponentMetadata, /) -> Component:
         """
         Create a component by metadata.
         :param parent: the parent component
+        :param graphics: graphics interface of the canvas the component belongs to
         :param meta: metadata of the component
         :return: the component object
         """
         ...
 
-    def create_component(self, parent: Nullable[Component], name_or_meta: string | ComponentMetadata, /) -> Component:
+    def create_component(self, parent: Nullable[Component], graphics: IComponentGraphics,
+                         name_or_meta: string | ComponentMetadata, /) -> Component:
         if isinstance(name_or_meta, string):
             meta = self.lookup(name_or_meta)
         else:
             meta = name_or_meta
         # noinspection unresolved-references
-        component = meta.component_type(parent)
+        component = meta.component_type(parent, graphics)
         return component
 
     class KitInternalError(Exception):

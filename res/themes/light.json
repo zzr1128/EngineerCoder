@@ -29,6 +29,7 @@
         "secondary": "#A3CCC0",
         "tertiary": "#B8D9CE",
         "side": "#B8CCC6",
-        "foreground": "#131A18"
+        "foreground": "#131A18",
+        "selected": "#F2994A"
     }
 }

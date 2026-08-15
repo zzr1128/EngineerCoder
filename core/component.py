@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 
 from PySide6.QtCore import QPointF
+from PySide6.QtWidgets import QWidget
 
 from alias import *
 from alias import IList
@@ -115,6 +116,12 @@ class Component:
     """
     The abstract super class of all components.
     All non-abstract implementation component should derive from the class.
+
+    Serialization convention: ``__serialize__`` produces a pure-data archive (no UI
+    context), while ``restore`` reconstructs a component from that archive together
+    with the same UI context the constructor requires (parent and graphics).
+    Components are therefore **not** restorable through the context-free, generic
+    ``__deserialize__``/``deserialize`` protocol.
     """
 
     def __new__(cls, *args, **kwargs):
@@ -132,6 +139,28 @@ class Component:
     @pure_virtual
     def interface(self) -> IComponentInterface:
         raise NotImplementedError
+
+    def autoFocusWidget(self) -> Nullable[QWidget]:
+        """
+        :return: the widget that should receive the focus right after this component
+            is inserted into an editor (usually its first required field); null keeps
+            the text cursor right after the inserted component
+
+        Components with input fields should override this method.
+        """
+        return null
+
+    def editableWidgets(self) -> IList[QWidget]:
+        """
+        :return: the editable widgets of this component in navigation order, used by
+            the editors for Left/Right arrow navigation: pressing Right at the end of
+            one widget moves the focus to the next one (escaping behind the component
+            when there is none), and pressing Left at the beginning moves it to the
+            previous one (escaping before the component when there is none)
+
+        Components with input fields should override this method.
+        """
+        return []
 
     @classmethod
     @pure_virtual
@@ -166,7 +195,17 @@ class Component:
 
     @classmethod
     @pure_virtual
-    def __deserialize__(cls, data: Any) -> Self:
+    def restore(cls: typeof[ComponentTy], data: Any, parent: Nullable['Component'],
+                graphics: 'IComponentGraphics') -> ComponentTy:
+        """
+        Restore a component from its serialization.
+        :param data: archive produced by ``__serialize__``
+        :param parent: logical parent of the restored component (null for a root)
+        :param graphics: graphics interface of the canvas the component is restored on
+
+        The context parameters mirror the constructor: constructing a component
+        requires a UI context that a pure-data archive cannot contain.
+        """
         raise NotImplementedError
 
     @pure_virtual
@@ -224,10 +263,10 @@ class ComponentDelegation(Generic[T]):
         """
         raise NotImplementedError
 
-    def __init__(self, km, parent: Nullable[Component]):
+    def __init__(self, km, parent: Nullable[Component], graphics: IComponentGraphics):
         languages, name = self.delegated()  # type: tuple[SupportedLanguage], string
         self._meta: ComponentMetadata = km.lookup(name)
-        self.component: Component = self._meta.component_type(parent)
+        self.component: Component = self._meta.component_type(parent, graphics)
 
     def interface(self) -> IComponentInterface:
         return self.component.interface()

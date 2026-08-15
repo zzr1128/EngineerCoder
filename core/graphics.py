@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QPoint, QRect, Qt, QRectF, QPointF
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QFontMetricsF
-from PySide6.QtWidgets import QWidget, QLineEdit, QTextEdit, QLabel
+from PySide6.QtWidgets import QWidget, QLineEdit, QTextEdit, QLabel, QCheckBox
 
 from alias import *
 from alias import Nullable
@@ -429,6 +429,17 @@ class IComponentGraphics:
         :param font: font of the label
 
         This method will automatically compute the size of the label.
+        """
+        raise NotImplementedError
+
+    @pure_virtual
+    def create_checkbox(self, text: string, font: QFont) -> QCheckBox:
+        """
+        Create a check box control.
+        :param text: text of the check box
+        :param font: font of the check box
+
+        This method will automatically compute the size of the check box.
         """
         raise NotImplementedError
 

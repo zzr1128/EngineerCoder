@@ -26,7 +26,8 @@ class HyperTextEdit(QTextEdit):
 
         # noinspection GrazieInspection
         @overload
-        def __init__(self, obj: null, widget: null, posInDocument: Literal['maximum', 'minimum']):
+        def __init__(self, obj: Nullable['HyperTextObject'], widget: Nullable[QWidget],
+                     posInDocument: Literal['maximum', 'minimum']):
             """
             Create an inline-object that contains an infinite value as a placeholder for non-existing elements.
             :param obj: null
@@ -137,10 +138,13 @@ class HyperTextEdit(QTextEdit):
 
         cursor = self.textCursor()
         pos = cursor.position()
+        # Insert the placeholder first: the emitted contentsChange shifts the recorded
+        # positions of the objects at or after the insertion point; the new object is
+        # recorded afterwards so that it is not shifted itself
+        cursor.insertText('\uFFFC', fmt)
         obj = HyperTextEdit._InlineObject(interface, widget, pos)
         self.objects[widget.objectName()] = obj
         self.displaying_objects.insert(obj)
-        cursor.insertText('\uFFFC', fmt)
         self.setTextCursor(cursor)
         self.viewport().update()
 
@@ -203,9 +207,28 @@ class HyperTextEdit(QTextEdit):
                 cnt += 1
 
         if added_count != removed_count:
-            self.displaying_objects.add_suffix_by_value(pos + added_count - removed_count, added_count - removed_count)
+            self._shift_suffix(pos + removed_count, added_count - removed_count)
 
         self.fitSize()
+
+    @final
+    def _shift_suffix(self, threshold: int, delta: int) -> void:
+        """
+        Shift the recorded positions of all inline objects located at or after the
+        threshold by the specified delta, keeping them synchronized with the document
+        after an insertion (positive delta) or removal (negative delta).
+        :param threshold: smallest position affected by the shift (document coordinates
+            before the change takes effect on the recorded positions)
+        :param delta: the shift amount
+
+        ``add_suffix`` only shifts elements strictly greater than a pivot element, and
+        requires such a pivot to exist; no object needs to sit right before the
+        threshold, so a temporary pivot is inserted and removed afterwards.
+        """
+        pivot = HyperTextEdit._InlineObject(null, null, threshold - 1)
+        self.displaying_objects.insert(pivot)
+        self.displaying_objects.add_suffix(pivot, delta)
+        self.displaying_objects.remove(pivot)
 
     def setMaximumHeight(self, maxh: int, /) -> void:
         super().setMaximumHeight(maxh)

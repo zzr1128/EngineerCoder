@@ -195,6 +195,10 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
                 background: transparent;
                 color: {self.env.theme.colors.foreground.name()};
             }}
+            QMainWindow QCheckBox {{
+                background: transparent;
+                color: {self.env.theme.colors.foreground.name()};
+            }}
         """)
 
     def setup(self) -> void:

@@ -20,6 +20,7 @@ class Theme:
         tertiary: QColor
         side: QColor
         foreground: QColor
+        selected: QColor
 
         def __serialize__(self) -> IDictionary[string, Any]:
             return {
@@ -30,12 +31,14 @@ class Theme:
                 'tertiary': self.tertiary.name(),
                 'side': self.side.name(),
                 'foreground': self.foreground.name(),
+                'selected': self.selected.name(),
             }
 
         @classmethod
         def __deserialize__(cls, data: IDictionary[string, Any]) -> Self:
             require_type(data, dict)
-            require_member(data, 'components', 'background', 'primary', 'secondary', 'tertiary', 'side', 'foreground')
+            require_member(data, 'components', 'background', 'primary', 'secondary', 'tertiary', 'side',
+                           'foreground', 'selected')
             require_type(data['components'], list)
             require_type(data['background'], string)
             require_type(data['primary'], string)
@@ -43,6 +46,7 @@ class Theme:
             require_type(data['tertiary'], string)
             require_type(data['side'], string)
             require_type(data['foreground'], string)
+            require_type(data['selected'], string)
             components: IList[IList[QColor]] = []
             try:
                 for l in data['components']:
@@ -63,7 +67,8 @@ class Theme:
                     secondary=QColor(data['secondary']),
                     tertiary=QColor(data['tertiary']),
                     side=QColor(data['side']),
-                    foreground=QColor(data['foreground'])
+                    foreground=QColor(data['foreground']),
+                    selected=QColor(data['selected'])
                 )
             except Exception:
                 raise Exception(f'Invalid color')
