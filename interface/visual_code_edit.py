@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from PySide6.QtCore import Qt, QPoint, QPointF, QRect, QRectF, QSize, QSizeF, QTimer, Signal
 from PySide6.QtGui import (QFocusEvent, QKeyEvent, QMouseEvent, QPainter, QResizeEvent,
                            QTextCharFormat, QTextCursor, QTextDocument, QTextFormat)
-from PySide6.QtWidgets import QFrame, QListWidget, QListWidgetItem, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QWidget
 
 from alias import *
 from alias import Nullable
@@ -21,20 +21,37 @@ class _CompletionPopup(QFrame):
 
     The popup never takes the input focus (``WA_ShowWithoutActivating``),
     so the editor keeps receiving key events while the popup is visible.
+
+    The left pane lists the matching entries; the right pane details the
+    description of the currently highlighted entry, like Visual Studio IntelliSense.
     """
-    PopupWidth: Final[int] = 280
+    ListWidth: Final[int] = 280
+    DetailWidth: Final[int] = 260
     MaxHeight: Final[int] = 240
+    NoDescription: Final[string] = 'No description available.'
 
     def __init__(self):
         super().__init__(null, Qt.WindowType.ToolTip | Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         self.entries: IList['VisualCodeEdit.CompletionEntry'] = []
 
-        layout = QVBoxLayout(self)
+        layout = QHBoxLayout(self)
         layout.setContentsMargins(3, 3, 3, 3)
+        layout.setSpacing(0)
         self.list = QListWidget(self)
         self.list.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.list.setFixedWidth(_CompletionPopup.ListWidth)
         layout.addWidget(self.list)
+
+        # Detail pane showing the description of the highlighted entry
+        self.detail = QLabel(self)
+        self.detail.setFixedWidth(_CompletionPopup.DetailWidth)
+        self.detail.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        self.detail.setWordWrap(True)
+        self.detail.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+        layout.addWidget(self.detail)
+
+        self.list.currentRowChanged.connect(self._refresh_detail)
 
     def set_entries(self, entries: IEnumerable['VisualCodeEdit.CompletionEntry']) -> void:
         """
@@ -51,7 +68,8 @@ class _CompletionPopup(QFrame):
         row_height = self.list.sizeHintForRow(0) if self.entries else 22
         row_height = max(row_height, 22)
         height = min(len(self.entries) * (row_height + 2) + 10, _CompletionPopup.MaxHeight)
-        self.setFixedSize(_CompletionPopup.PopupWidth, height)
+        width = _CompletionPopup.ListWidth + _CompletionPopup.DetailWidth + 6
+        self.setFixedSize(width, height)
 
     def current_entry(self) -> Nullable['VisualCodeEdit.CompletionEntry']:
         """
@@ -79,6 +97,19 @@ class _CompletionPopup(QFrame):
         if not self.entries:
             return
         self.list.setCurrentRow((self.list.currentRow() + delta) % len(self.entries))
+
+    @final
+    def _refresh_detail(self, row: int) -> void:
+        """
+        Show the description of the entry at the specified row in the detail pane.
+        :param row: row index of the highlighted entry
+        """
+        entry = self.entry_at(row)
+        if entry is null:
+            self.detail.clear()
+            return
+        description = entry.description.strip()
+        self.detail.setText(description if description else _CompletionPopup.NoDescription)
 
 
 class _ComponentInlineObject(HyperTextObject):
@@ -149,6 +180,7 @@ class VisualCodeEdit(HyperTextEdit):
     class CompletionEntry:
         keyword: string           # Keyword typed by the user (e.g. 'if')
         component_name: string    # Complete name of the component (e.g. 'clk.br')
+        description: string = ''  # Description shown in the popup detail pane
 
     DefaultCompletions: ClassVar[IList[CompletionEntry]] = [
         CompletionEntry('if', 'clk.br'),
@@ -164,7 +196,11 @@ class VisualCodeEdit(HyperTextEdit):
         """
         super().__init__(parent)
         self.graphics: IComponentGraphics = graphics
-        self.completions: IList[VisualCodeEdit.CompletionEntry] = list(VisualCodeEdit.DefaultCompletions)
+        self.completions: IList[VisualCodeEdit.CompletionEntry] = [
+            VisualCodeEdit.CompletionEntry(entry.keyword, entry.component_name,
+                                           entry.description or self._entry_description(entry.component_name))
+            for entry in VisualCodeEdit.DefaultCompletions
+        ]
         self.inserted_components: IList[Component] = []
         self._spacer_components: IDictionary[string, Component] = {}  # Placeholder name -> component
         self._component_spacers: IDictionary[Component, QWidget] = {}  # Component -> placeholder
@@ -181,13 +217,29 @@ class VisualCodeEdit(HyperTextEdit):
         # so that components painted on the canvas underneath remain visible)
         self.setFrameShape(QFrame.Shape.NoFrame)
 
-    def add_completion(self, keyword: string, component_name: string) -> void:
+    def add_completion(self, keyword: string, component_name: string, description: string = '') -> void:
         """
         Append a completion entry (keyword mapped to a component).
         :param keyword: keyword that triggers the completion
         :param component_name: complete name of the component to insert
+        :param description: description shown in the popup detail pane;
+            resolved from the component metadata when left empty
         """
-        self.completions.append(VisualCodeEdit.CompletionEntry(keyword, component_name))
+        self.completions.append(VisualCodeEdit.CompletionEntry(
+            keyword, component_name, description or self._entry_description(component_name)))
+
+    @final
+    def _entry_description(self, component_name: string) -> string:
+        """
+        Resolve the description of a component from its metadata.
+        :param component_name: complete name of the component
+        :return: the description, or empty string when it cannot be resolved
+        """
+        # noinspection broad-exception
+        try:
+            return Environment.instance().kit_manager.lookup(component_name).description
+        except Exception:
+            return ''
 
     def insert_branch(self) -> Nullable[Component]:
         """
@@ -630,6 +682,13 @@ class VisualCodeEdit(HyperTextEdit):
             _CompletionPopup QListWidget::item:selected {{
                 background-color: {colors.tertiary.name()};
                 color: {colors.foreground.name()};
+            }}
+            _CompletionPopup QLabel {{
+                background: transparent;
+                border: none;
+                border-left: 1px solid {colors.tertiary.name()};
+                color: {colors.foreground.name()};
+                padding: 3px 8px;
             }}
         """)
 
