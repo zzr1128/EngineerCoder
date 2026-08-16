@@ -264,6 +264,21 @@ class KitManager:
     def __init__(self):
         self._kits: IDictionary[string, Kit] = {}
         self.modules: IDictionary[string, ModuleType] = {}
+        # Keyword -> complete component name; contributed by kits so their components
+        # take part in the code completion of visual code edits (see
+        # ``VisualCodeEdit.add_completion``); the level filter still applies
+        self.completions: IDictionary[string, string] = {}
+
+    def add_completion(self, keyword: string, component_name: string) -> void:
+        """
+        Register a completion keyword for a component of an imported kit.
+        :param keyword: keyword that triggers the completion (e.g. 'adjust')
+        :param component_name: complete name of the component (in format 'kit.component')
+
+        Visual code edits absorb the registry automatically, so the registration
+        may happen at any time relative to the edit construction.
+        """
+        self.completions[keyword] = component_name
 
     def __iter__(self) -> IEnumerator[Kit]:
         return iter(self._kits.values())

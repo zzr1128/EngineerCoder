@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QLineEdit, QListWidg
 
 from alias import *
 from alias import Nullable
-from core.component import Component
+from core.component import Component, ComponentMetadata
 from core.environment import Environment
 from core.graphics import IComponentGraphics
 from core.hyper_text_edit import HyperTextEdit, HyperTextObject
@@ -221,12 +221,18 @@ class VisualCodeEdit(HyperTextEdit):
                                            entry.description or self._entry_description(entry.component_name))
             for entry in VisualCodeEdit.DefaultCompletions
         ]
+        self._sync_kit_completions()  # Absorb the keywords kits have contributed so far
         self.inserted_components: IList[Component] = []
         self._spacer_components: IDictionary[string, Component] = {}  # Placeholder name -> component
         self._component_spacers: IDictionary[Component, QWidget] = {}  # Component -> placeholder
         self._component_occupations: IDictionary[Component, float] = {}  # Component -> right occupation
 
         self._popup: Nullable[_CompletionPopup] = null
+
+        # Completion filter criteria (see ``filter``); a null level disables filtering
+        self._filter_level: Nullable[int] = null
+        self._filter_block: set[string] = set()
+        self._filter_bypass: set[string] = set()
 
         # The inserted component currently marked as selected (deletion pending confirmation)
         self._selected_component: Nullable[Component] = null
@@ -260,6 +266,44 @@ class VisualCodeEdit(HyperTextEdit):
         self.completions.append(VisualCodeEdit.CompletionEntry(
             keyword, component_name, description or self._entry_description(component_name)))
 
+    def filter(self, level: int, block: IEnumerable[string] = (), bypass: IEnumerable[string] = ()) -> void:
+        """
+        Restrict the code completion by component level.
+
+        Only the components whose ``ComponentMetadata.level`` is less than or equal
+        to the given level (or listed in ``bypass``) take part in the completion
+        popup; the components listed in ``block`` never do (blocking wins over
+        bypassing). The criteria apply on the fly, so entries added afterwards are
+        filtered as well.
+        :param level: maximum level of the components that may take part
+        :param block: complete names of the components excluded from the completion
+        :param bypass: complete names of the components taking part regardless of level
+        """
+        self._filter_level = level
+        self._filter_block = set(block)
+        self._filter_bypass = set(bypass)
+
+    def clear_filter(self) -> void:
+        """
+        Remove the completion filter, letting every completion entry take part again.
+        """
+        self._filter_level = null
+        self._filter_block = set()
+        self._filter_bypass = set()
+
+    @final
+    def _sync_kit_completions(self) -> void:
+        """
+        Absorb the completion keywords kits have contributed to the kit manager
+        registry (``KitManager.completions``) but this edit does not know yet.
+        The level filter still applies to the absorbed entries (see ``filter``).
+        """
+        kit_manager = Environment.instance().kit_manager
+        for keyword, component_name in kit_manager.completions.items():
+            if any(entry.component_name == component_name for entry in self.completions):
+                continue
+            self.add_completion(keyword, component_name)
+
     @final
     def _entry_description(self, component_name: string) -> string:
         """
@@ -272,6 +316,34 @@ class VisualCodeEdit(HyperTextEdit):
             return Environment.instance().kit_manager.lookup(component_name).description
         except Exception:
             return ''
+
+    @final
+    def _entry_level(self, component_name: string) -> int:
+        """
+        Resolve the level of a component from its metadata.
+        :param component_name: complete name of the component
+        :return: the level, or ``ComponentMetadata.Level.Zero`` when it cannot be
+            resolved (unresolved components stay available everywhere)
+        """
+        # noinspection broad-exception
+        try:
+            return Environment.instance().kit_manager.lookup(component_name).level
+        except Exception:
+            return ComponentMetadata.Level.Zero
+
+    @final
+    def _entry_participates(self, entry: CompletionEntry) -> bool:
+        """
+        Whether a completion entry takes part in the completion popup under the
+        current filter criteria (see ``filter``).
+        """
+        if self._filter_level is null:
+            return True
+        if entry.component_name in self._filter_block:
+            return False
+        if entry.component_name in self._filter_bypass:
+            return True
+        return self._entry_level(entry.component_name) <= self._filter_level
 
     def insert_branch(self) -> Nullable[Component]:
         """
@@ -1137,13 +1209,15 @@ class VisualCodeEdit(HyperTextEdit):
         """
         Refresh the completion popup according to the word being typed.
         """
+        self._sync_kit_completions()  # Kits imported after the edit construction still contribute
         prefix = self._current_word()
         if not prefix:
             self._hide_popup()
             return
 
         lowered = prefix.lower()
-        matches = [entry for entry in self.completions if entry.keyword.lower().startswith(lowered)]
+        matches = [entry for entry in self.completions
+                   if entry.keyword.lower().startswith(lowered) and self._entry_participates(entry)]
         if not matches:
             self._hide_popup()
             return

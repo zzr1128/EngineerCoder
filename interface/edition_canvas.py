@@ -775,7 +775,15 @@ class EditionCanvas(QWidget, IComponentGraphics):
         """
         bottom = 0
         for w, a in self.widgets.values():
-            bottom = max(bottom, w.y() + w.height())
+            if a.rect.height() <= 0 and isinstance(w, HyperTextEdit):
+                # A fill-height edit stretches with the canvas; only its contents
+                # may push the canvas further (counting its stretched height would
+                # grow the canvas and the edit after each other without bound)
+                # noinspection PyProtectedMember
+                height = w._heightToFit()
+            else:
+                height = w.height()
+            bottom = max(bottom, w.y() + height)
         needed = bottom + 40  # Keep some space below the last widget
         if needed == self._content_height:
             return

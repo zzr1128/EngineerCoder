@@ -74,7 +74,10 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
             container = container.parentWidget()
         self.tabWidget_editor.setCurrentWidget(container)
         # canvas.create_lineedit(QRectF(0, 0, 100, 20))
-        comp_meta = self.env.kit_manager.lookup('clk.br')
+        # The script root is a translation unit: a whole-page visual code edit
+        # filling the canvas' client rectangle (leaving only its margin). Type e.g.
+        # "adjust" and press Enter to insert a DEFINE_ADJUST component inline.
+        comp_meta = self.env.kit_manager.lookup('fluent.translation_unit')
         comp = comp_meta.component_type(null, canvas)
         canvas.add_interface(comp.interface)
         self.script = Script(comp)
@@ -153,6 +156,9 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
             }}
             
             /* Side dock widget */
+            QDockWidget {{
+                color: {self.env.theme.colors.foreground.name()};
+            }}
             QDockWidget::title {{
                 background-color: {self.env.theme.colors.tertiary.name()};
                 border-radius: 6px;
@@ -224,6 +230,28 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
                 background-color: {self.env.theme.colors.tertiary.name()};
             }}
             QMenuBar::item:pressed {{
+                background-color: {tp.name()};
+            }}
+            
+            /* Toolbar */
+            QToolBar {{
+                background-color: {self.env.theme.colors.background.name()};
+                color: {self.env.theme.colors.foreground.name()};
+                border: none;
+                spacing: 2px;
+                padding: 2px;
+            }}
+            QToolBar QToolButton {{
+                background: transparent;
+                color: {self.env.theme.colors.foreground.name()};
+                padding: 5px;
+                border: none;
+                border-radius: 6px;
+            }}
+            QToolBar QToolButton:hover {{
+                background-color: {self.env.theme.colors.tertiary.name()};
+            }}
+            QToolBar QToolButton:pressed {{
                 background-color: {tp.name()};
             }}
             

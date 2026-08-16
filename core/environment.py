@@ -43,7 +43,10 @@ class Environment:
         self.version = Environment.VERSION
         self.languages: IList[SupportedLanguage] = []
         self.project: Nullable['Project'] = null
-        self.kit_manager = KitManager()
+        # Do NOT call KitManager() here: when the singleton already exists (e.g.
+        # created while a kit module was imported), __init__ would run again and
+        # wipe the registered kits and completions (same convention as instance)
+        self.kit_manager = KitManager.instance()
         self.local_language = language
         self.theme = Theme.from_resource('light.json')
         self.rt: IDictionary[string, Any] = {}

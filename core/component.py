@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import enum
 from dataclasses import dataclass
 
 from PySide6.QtCore import QPointF
@@ -86,21 +87,40 @@ class ComponentMetadata:
         def __contains__(self, item) -> bool:
             return item in self.data
 
+    class Level(enum.IntEnum):
+        """
+        Predefined levels of a component.
+
+        The level orders components by the contexts they may appear in: a context of
+        a given level accepts the components whose level is less than or equal to it
+        (see ``VisualCodeEdit.filter``). Custom levels are allowed as well: any ``int``
+        between (or beyond) the predefined ones; the predefined values are spaced
+        out so that there is always room in between.
+        """
+        Zero = 0
+        Expression = 100
+        Statement = 200
+        Domain = 300
+
     name: string
     display_name: string
     description: string
     component_type: typeof['Component']
     languages: IList[SupportedLanguage]
     delegations: Delegation
+    # Level of the contexts the component may appear in (any int, see ``Level``);
+    level: int
 
     @staticmethod
-    def create(name: string, display_name: string, description: string, languages: IList[SupportedLanguage]) -> Callable[[T], T]:
+    def create(name: string, display_name: string, description: string, languages: IList[SupportedLanguage],
+               level: int = Level.Zero) -> Callable[[T], T]:
         def decorator(cls: T) -> T:
             if hasattr(cls, 'meta') and not getattr(cls.meta, '__isabstractmethod__', False):
                 raise TypeError(f'Component "{cls}" already has metadata')
             meta = ComponentMetadata(name=name, display_name=display_name, description=description,
                                      component_type=cls,
-                                     languages=languages, delegations=ComponentMetadata.Delegation())
+                                     languages=languages, delegations=ComponentMetadata.Delegation(),
+                                     level=level)
             setattr(cls, '_meta', meta)
             return Component.use__meta(cls)
         return decorator
@@ -269,7 +289,7 @@ class ComponentDelegation(Generic[T]):
         self.component: Component = self._meta.component_type(parent, graphics)
 
     def interface(self) -> IComponentInterface:
-        return self.component.interface()
+        return self.component.interface
 
     def is_root(self) -> bool:
         return self.component.is_root()

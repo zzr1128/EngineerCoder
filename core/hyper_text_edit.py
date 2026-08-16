@@ -234,6 +234,21 @@ class HyperTextEdit(QTextEdit):
         super().setMaximumHeight(maxh)
         self.max_height = self.maximumHeight()
 
+    def setBasicHeight(self, height: int) -> void:
+        """
+        Set the basic height: the floor ``fitSize`` never shrinks below,
+        regardless of the contents.
+        :param height: the new basic height in pixels
+
+        Editors that must fill a given area (e.g. the client rectangle of the
+        canvas) keep the area height as their basic height, so empty contents
+        still fill it while growing contents still extend it.
+        """
+        if height == self.basic_height:
+            return
+        self.basic_height = height
+        self.fitSize()
+
     def changeEvent(self, event: QEvent, /) -> void:
         super().changeEvent(event)
         if event.type() == QEvent.Type.FontChange:
