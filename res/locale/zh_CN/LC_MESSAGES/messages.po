@@ -81,3 +81,35 @@ msgstr "组件"
 #: interface/editor.py:106
 msgid "ui.details.title"
 msgstr "详细信息"
+
+#: interface/editor.py
+msgid "ui.menu.file"
+msgstr "文件"
+
+#: interface/editor.py
+msgid "ui.menu.edit"
+msgstr "编辑"
+
+#: interface/editor.py
+msgid "ui.menu.view"
+msgstr "视图"
+
+#: interface/editor.py
+msgid "ui.menu.code"
+msgstr "代码"
+
+#: interface/editor.py
+msgid "ui.action.compile"
+msgstr "编译"
+
+#: interface/editor.py
+msgid "ui.build.no_project"
+msgstr "没有已加载的项目可供构建。"
+
+#: interface/editor.py
+msgid "ui.build.success"
+msgstr "构建成功：{1}"
+
+#: interface/editor.py
+msgid "ui.build.fail"
+msgstr "构建失败：{1}"

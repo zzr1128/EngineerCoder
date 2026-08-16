@@ -106,14 +106,16 @@ class Kit:
         ...
 
     @overload
-    def register(self, delegation: typeof[ComponentDelegation[ComponentTy]], /) -> void:
+    def register(self, delegation: typeof[ComponentDelegation[ComponentTy]], /) -> typeof[ComponentDelegation[ComponentTy]]:
         """
         Register a component delegation to a kit, store it in the buffer and waiting for flushing.
         :param delegation: delegation to store
+        :return: the delegation type itself
         """
         ...
 
-    def register(self, component: ComponentMetadata | typeof[Component] | typeof[ComponentDelegation[ComponentTy]], /) -> void | typeof[Component]:
+    def register(self, component: ComponentMetadata | typeof[Component] | typeof[ComponentDelegation[ComponentTy]], /) \
+            -> void | typeof[Component] | typeof[ComponentDelegation[ComponentTy]]:
         if isinstance(component, ComponentMetadata):
             if component.name in self.components:
                 raise Kit.ComponentExistsError(self.meta.name, component.name)
@@ -123,7 +125,7 @@ class Kit:
             # noinspection bad-argument-type
             if issubclass(component, ComponentDelegation):
                 self.delegation_buffer.append(component)
-                return None
+                return component
             elif issubclass(component, Component):
                 self.register(component.meta())
                 return component
@@ -386,15 +388,21 @@ class KitManager:
 
     def flush_delegations(self) -> void:
         """
-        Flush all unresolved delegations and register them to their target components.
+        Flush all pending delegations whose delegated components are already registered,
+        registering them to their target components.
 
-        Prior to flushing, delegations are invisible in building, etc.
+        Delegations whose targets have not been imported yet remain in the buffer and
+        are retried on the next flush, so the kit importation order does not matter.
+        Prior to being resolved, delegations are invisible in building, etc.
         """
         for kit in self._kits.values():
+            pending: IList[typeof[ComponentDelegation]] = []
             for delegation in kit.delegation_buffer:
-                self._resolve_delegation(delegation)
-            kit.delegation_buffer.clear()
-
+                try:
+                    self._resolve_delegation(delegation)
+                except LookupError:
+                    pending.append(delegation)  # The delegated kit/component is not imported yet
+            kit.delegation_buffer = pending
 
     @overload
     def create_component(self, parent: Nullable[Component], graphics: IComponentGraphics, name: string, /) -> Component:
@@ -521,6 +529,9 @@ class KitManager:
 
         self.register(kit)
         kit.module_key = module_name
+        # Delegations buffered in the imported kit (or in kits depending on it) may be
+        # resolvable now; retry them so the kit importation order does not matter
+        self.flush_delegations()
         return kit
 
     def __repr__(self) -> string:

@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from alias import *
+from core.build import Compiler
 from core.component import Component
 from core.graphics import IComponentGraphics
 from core.kit import KitManager
@@ -15,6 +16,16 @@ class Script:
 
         self.tu: Component = tu
         self.path: Nullable[Path] = null
+
+    @property
+    def name(self) -> string:
+        """Basename of the script's build artifact: derived from the file path,
+        falling back to ``main`` while the script is unsaved."""
+        return self.path.stem if self.path is not null else 'main'
+
+    def build(self, compiler: Compiler) -> void:
+        """Compile the component tree of the script into the compiler's products."""
+        self.tu.build(compiler)
 
     def __serialize__(self) -> IDictionary[string, Any]:
         # noinspection bad-argument-type

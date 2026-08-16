@@ -1,10 +1,14 @@
 # -*- coding: utf-8 -*-
 
+from pathlib import Path
+
 from alias import *
+from core.build import BuildConfig, Compiler
 from core.graphics import IComponentGraphics
 from core.kit import Kit, KitManager
 from core.meta import SupportedLanguage
 from core.script import Script
+from path import BASE_DIR
 
 
 @final
@@ -47,3 +51,39 @@ class Project:
         proj.scripts = [Script.restore(script, kit_manager, graphics) for script in data['scripts']]
         proj.required_kits = [kit for kit in data['required_kits']]
         return proj
+
+    def build_script(self, script: Script, config: BuildConfig) -> Compiler:
+        """
+        Compile a script of the project.
+        :param script: script to compile
+        :param config: building configuration
+        :return: the compiler holding the compilation products
+        """
+        compiler = Compiler(config)
+        script.build(compiler)
+        return compiler
+
+    def build_project(self, config: BuildConfig) -> IList[Path]:
+        """
+        Compile every script of the project and write the compilation products to files.
+        :param config: building configuration; its ``output`` directory receives the
+            artifacts, defaulting to ``build`` next to the project file (or under the
+            workspace ``build`` directory, named after the project, while unsaved)
+        :return: paths of the generated artifacts
+        """
+        if config.output is not null:
+            output = config.output
+        elif self.path is not null:
+            output = Path(self.path).parent / 'build'
+        else:
+            output = BASE_DIR / 'build' / self.name
+        output.mkdir(parents=True, exist_ok=True)
+        artifacts: IList[Path] = []
+        for script in self.scripts:
+            compiler = self.build_script(script, config)
+            fragments: IList[string] = compiler.products.get(config.target_lang.id, [])
+            target = output / f'{script.name}.{config.target_lang.extension}'
+            with Compiler.CompilationProductGuide(str(target)) as product:
+                product.write('\n\n'.join(fragments))
+            artifacts.append(target)
+        return artifacts

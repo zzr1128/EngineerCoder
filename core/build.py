@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from io import BufferedWriter
+from pathlib import Path
 from types import TracebackType
 
 from alias import *
@@ -19,6 +20,8 @@ class BuildConfig:
 
     target_lang: SupportedLanguage
     opt_level: OptimizationLevel = OptimizationLevel.O0
+    # Directory receiving the build artifacts; null lets the project resolve a default
+    output: Nullable[Path] = null
 
 
 class Builder:
@@ -67,12 +70,13 @@ class Compiler(Builder):
             self.name = name
             self.file: Nullable[BufferedWriter] = null
 
-        def __enter__(self) -> void:
+        def __enter__(self) -> Self:
             try:
                 self.file = open(self.name, 'wb')
             except OSError as exc:
                 maybe_unused(exc)
                 raise Builder.BuildError(Builder.B1003, _('CPG.enter.open_fail').format(self.name))
+            return self
 
         def __exit__(self, exc_type: Nullable[typeof[BaseException]], exc_val: Nullable[BaseException],
                      exc_tb: Nullable[TracebackType]) -> null | bool:

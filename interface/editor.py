@@ -9,6 +9,9 @@ from alias import Nullable
 from core.localization import _
 from core.script import Script
 from core.environment import Environment
+from core.project import Project
+from core.resource import Resource
+from kits.fluent.fluent import UDF
 from interface.ui_style_editor import Ui_EditorWindow
 from interface.edition_canvas import EditionCanvas
 
@@ -58,9 +61,11 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
         self.compArea_layout = QVBoxLayout(self.scrollAreaCompContents)
 
         self.setup()
+        self.setup_actions()
 
         # Test code
         self.env.import_kit(r'kits/common')
+        self.env.import_kit(r'kits/fluent')  # UDF delegations for the CLK components
         tab = self.create_canvas('TestTab')
         canvas = self.canvas(tab)
         # The tab widget is the scroll area wrapping the canvas (through its viewport)
@@ -73,6 +78,10 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
         comp = comp_meta.component_type(null, canvas)
         canvas.add_interface(comp.interface)
         self.script = Script(comp)
+        # Test project so that the building pipeline has something to compile
+        project = Project('Test', UDF)
+        project.scripts.append(self.script)
+        self.env.project = project
         # comp.interface.paint(canvas)
         # Visual code edit: type e.g. "if" and press Enter to insert a Branch component
         # inline into the text. Non-positive width extends the edit to the canvas right edge,
@@ -199,7 +208,75 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
                 background: transparent;
                 color: {self.env.theme.colors.foreground.name()};
             }}
+            
+            /* Menu bar */
+            QMenuBar {{
+                background-color: {self.env.theme.colors.background.name()};
+                color: {self.env.theme.colors.foreground.name()};
+            }}
+            QMenuBar::item {{
+                background: transparent;
+                color: {self.env.theme.colors.foreground.name()};
+                padding: 5px 10px;
+                border-radius: 6px;
+            }}
+            QMenuBar::item:selected {{
+                background-color: {self.env.theme.colors.tertiary.name()};
+            }}
+            QMenuBar::item:pressed {{
+                background-color: {tp.name()};
+            }}
+            
+            /* Dropdown menus */
+            QMenu {{
+                background-color: {self.env.theme.colors.secondary.name()};
+                color: {self.env.theme.colors.foreground.name()};
+                border-radius: 6px;
+                padding: 4px;
+            }}
+            QMenu::item {{
+                background: transparent;
+                color: {self.env.theme.colors.foreground.name()};
+                padding: 6px 18px;
+                border-radius: 6px;
+            }}
+            QMenu::item:selected {{
+                background-color: {self.env.theme.colors.tertiary.name()};
+            }}
+            QMenu::separator {{
+                height: 1px;
+                background-color: {self.env.theme.colors.tertiary.name()};
+                margin: 4px 8px;
+            }}
         """)
+
+    def setup_actions(self) -> void:
+        # Theme-aware icons live in res/images/<theme name in lowercase>
+        icon_dir = Resource.resource_path('images', self.env.theme.name.lower())
+
+        self.action_compile = QAction(QIcon(str(icon_dir / 'compile.svg')), _('ui.action.compile'), self)
+        self.action_compile.setShortcut(QKeySequence(Qt.Key.Key_F10))
+        self.action_compile.triggered.connect(self.compile_project)
+
+        self.menu_file = self.menubar.addMenu(_('ui.menu.file'))
+        self.menu_edit = self.menubar.addMenu(_('ui.menu.edit'))
+        self.menu_view = self.menubar.addMenu(_('ui.menu.view'))
+        self.menu_code = self.menubar.addMenu(_('ui.menu.code'))
+        self.menu_code.addAction(self.action_compile)
+        self.toolBar.addAction(self.action_compile)
+
+    def compile_project(self) -> void:
+        """Build the loaded project and report the outcome in the status bar."""
+        if self.env.project is null:
+            self.statusbar.showMessage(_('ui.build.no_project'), 5000)
+            return
+        try:
+            artifacts = self.env.build()
+        except Exception as e:  # Building must never crash the UI
+            self.statusbar.showMessage(_('ui.build.fail').format(null, str(e)), 8000)
+            return
+        self.statusbar.showMessage(
+            _('ui.build.success').format(null, '; '.join(str(artifact) for artifact in artifacts)), 8000)
 
     def setup(self) -> void:
         # Setup graphic properties

@@ -4,6 +4,7 @@ import enum
 from pathlib import Path
 
 from alias import *
+from core.build import BuildConfig
 from core.kit import Kit, KitManager
 from core.localization import language
 from core.meta import Version, SupportedLanguage
@@ -69,7 +70,26 @@ class Environment:
         """
         if isinstance(path, Path):
             path = str(path)
-        return self.kit_manager.import_package_kit(path)
+        kit = self.kit_manager.import_package_kit(path)
+        # The languages a kit declares become available in this environment
+        for lang in kit.meta.languages:
+            if lang not in self.languages:
+                self.languages.append(lang)
+        return kit
+
+    def build(self, config: Nullable[BuildConfig] = null) -> IList[Path]:
+        """
+        Build the loaded project: compile its scripts and write the products to files.
+        :param config: building configuration; defaults to the project's target language
+        :return: paths of the generated artifacts
+        :raise ValueError: raise when no project is loaded
+        """
+        if self.project is null:
+            raise ValueError('Cannot build: no project is loaded in the environment')
+        project = self.project
+        if config is null:
+            config = BuildConfig(project.target_lang)
+        return project.build_project(config)
 
     def __repr__(self) -> string:
         return f'Environment<project {"loaded" if self.project is not null else "unloaded"} @ {self.version.major}.{self.version.minor}>'

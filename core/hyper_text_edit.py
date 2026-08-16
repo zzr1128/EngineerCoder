@@ -221,14 +221,14 @@ class HyperTextEdit(QTextEdit):
             before the change takes effect on the recorded positions)
         :param delta: the shift amount
 
-        ``add_suffix`` only shifts elements strictly greater than a pivot element, and
-        requires such a pivot to exist; no object needs to sit right before the
-        threshold, so a temporary pivot is inserted and removed afterwards.
+        ``add_suffix`` compares plain values, so the split key needs not exist in
+        the treap: a detached pivot marks the boundary without being inserted.
+        (Inserting it could collide with a real object at the same position, and
+        removing it would then non-deterministically evict the wrong twin, leaking
+        the pivot into queries.)
         """
         pivot = HyperTextEdit._InlineObject(null, null, threshold - 1)
-        self.displaying_objects.insert(pivot)
         self.displaying_objects.add_suffix(pivot, delta)
-        self.displaying_objects.remove(pivot)
 
     def setMaximumHeight(self, maxh: int, /) -> void:
         super().setMaximumHeight(maxh)

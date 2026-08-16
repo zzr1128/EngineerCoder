@@ -81,3 +81,35 @@ msgstr "Components"
 #: interface/editor.py:106
 msgid "ui.details.title"
 msgstr "Details"
+
+#: interface/editor.py
+msgid "ui.menu.file"
+msgstr "File"
+
+#: interface/editor.py
+msgid "ui.menu.edit"
+msgstr "Edit"
+
+#: interface/editor.py
+msgid "ui.menu.view"
+msgstr "View"
+
+#: interface/editor.py
+msgid "ui.menu.code"
+msgstr "Code"
+
+#: interface/editor.py
+msgid "ui.action.compile"
+msgstr "Compile"
+
+#: interface/editor.py
+msgid "ui.build.no_project"
+msgstr "No project is loaded to build."
+
+#: interface/editor.py
+msgid "ui.build.success"
+msgstr "Build succeeded: {1}"
+
+#: interface/editor.py
+msgid "ui.build.fail"
+msgstr "Build failed: {1}"

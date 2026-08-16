@@ -57,8 +57,7 @@ class ComponentMetadata:
         def append(self, lang: SupportedLanguage, delegation: typeof['ComponentDelegation'], /) -> void:
             if lang not in self.data:
                 self.data[lang] = []
-            else:
-                self.data[lang].append(delegation)
+            self.data[lang].append(delegation)
 
         def valid(self, lang: SupportedLanguage, /) -> 'DelegationValidation':
             """
@@ -66,9 +65,10 @@ class ComponentMetadata:
             """
             if lang not in self.data:
                 return self.NOT_FOUND
-            for delegation in self.data[lang]:
-                if delegation.delegated().languages == lang:
-                    return self.VALID
+            matches = [delegation for delegation in self.data[lang]
+                       if lang in delegation.delegated().languages]
+            if len(matches) == 1:
+                return self.VALID
             return self.CONFLICT
 
         def delegated(self, lang: SupportedLanguage, /) -> typeof['ComponentDelegation']:
@@ -226,7 +226,7 @@ class Component:
 
         match meta.delegations.valid(lang):
             case ComponentMetadata.Delegation.VALID:
-                meta.delegations.delegated(lang).compile(builder)
+                meta.delegations.delegated(lang).compile(self, builder)
                 return
             case ComponentMetadata.Delegation.NOT_FOUND:
                 raise Compiler.BuildError(
@@ -275,9 +275,10 @@ class ComponentDelegation(Generic[T]):
         return self.component.is_root()
 
     @classmethod
-    def compile(cls, builder: Compiler) -> void:
+    def compile(cls, component: Component, builder: Compiler) -> void:
         """
-        Compile the component.
+        Compile the delegated component in the languages this delegation supports.
+        :param component: instance of the delegated component being built
         :param builder: the compiler context
         :raise Compiler.CompilationError: raise when errors occur during compilation
         :raise Compiler.CompilationWarning: raise when warnings are made during compilation
