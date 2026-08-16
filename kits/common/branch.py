@@ -14,7 +14,8 @@ from kits.common.localization import _
 
 @clk.register
 @Component.use__interface
-@ComponentMetadata.create('br', _('display_name'), _('description'), [])
+@ComponentMetadata.create('br', _('display_name'), _('description'), [],
+                          level=ComponentMetadata.Level.Statement)
 class CBranch(Component):
     class FBranchInterface(IComponentInterface):
         lt_if: Final[string] = _('label_if')
@@ -34,6 +35,10 @@ class CBranch(Component):
             self.edit_cond = graphics.create_visual_code_edit(QRectF(0, 0, CLLibrary.GLinearLayout.FillWidth - 10, 30))
             self.edit_then = graphics.create_visual_code_edit(QRectF(0, 0, CLLibrary.GLinearLayout.FillWidth - 10, 30))
             self.edit_else = graphics.create_visual_code_edit(QRectF(0, 0, CLLibrary.GLinearLayout.FillWidth - 10, 30))
+            # The condition is an expression context; the branches are statement blocks
+            self.edit_cond.filter(ComponentMetadata.Level.Expression)
+            self.edit_then.filter(ComponentMetadata.Level.Statement)
+            self.edit_else.filter(ComponentMetadata.Level.Statement)
             self.layout = CLLibrary.GLinearLayout()
             self.layout.add_element(self.label_if, null, null, null)
             # Reserve label_then plus the padding before it, so the row ends at the right margin

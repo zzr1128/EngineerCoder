@@ -14,7 +14,8 @@ from kits.common.localization import _
 
 @clk.register
 @Component.use__interface
-@ComponentMetadata.create('loop', _('loop_display_name'), _('loop_description'), [])
+@ComponentMetadata.create('loop', _('loop_display_name'), _('loop_description'), [],
+                          level=ComponentMetadata.Level.Statement)
 class CLoop(Component):
     class FLoopInterface(IComponentInterface):
         lt_while: Final[string] = _('label_while')
@@ -30,6 +31,9 @@ class CLoop(Component):
             # Visual code edits accept code snippets and components inserted via completion
             self.edit_cond = graphics.create_visual_code_edit(QRectF(0, 0, CLLibrary.GLinearLayout.FillWidth - 10, 30))
             self.edit_body = graphics.create_visual_code_edit(QRectF(0, 0, CLLibrary.GLinearLayout.FillWidth - 10, 30))
+            # The condition is an expression context; the body is a statement block
+            self.edit_cond.filter(ComponentMetadata.Level.Expression)
+            self.edit_body.filter(ComponentMetadata.Level.Statement)
             self.layout = CLLibrary.GLinearLayout()
             self.layout.add_element(self.label_while, null, null, null)
             # Reserve label_do plus the padding before it, so the row ends at the right margin
@@ -90,7 +94,8 @@ class CLoop(Component):
 
 @clk.register
 @Component.use__interface
-@ComponentMetadata.create('for', _('for_display_name'), _('for_description'), [])
+@ComponentMetadata.create('for', _('for_display_name'), _('for_description'), [],
+                          level=ComponentMetadata.Level.Statement)
 class CFor(Component):
     class FForInterface(IComponentInterface):
         lt_repeat: Final[string] = _('label_repeat')
@@ -106,6 +111,9 @@ class CFor(Component):
             # Visual code edits accept code snippets and components inserted via completion
             self.edit_count = graphics.create_visual_code_edit(QRectF(0, 0, CLLibrary.GLinearLayout.FillWidth - 10, 30))
             self.edit_body = graphics.create_visual_code_edit(QRectF(0, 0, CLLibrary.GLinearLayout.FillWidth - 10, 30))
+            # The repetition count is an expression context; the body is a statement block
+            self.edit_count.filter(ComponentMetadata.Level.Expression)
+            self.edit_body.filter(ComponentMetadata.Level.Statement)
             self.layout = CLLibrary.GLinearLayout()
             self.layout.add_element(self.label_repeat, null, null, null)
             # Reserve label_times plus the padding before it, so the row ends at the right margin

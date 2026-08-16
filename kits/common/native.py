@@ -13,7 +13,8 @@ from kits.common.localization import _
 
 @clk.register
 @Component.use__interface
-@ComponentMetadata.create('native', _('native_display_name'), _('native_description'), [])
+@ComponentMetadata.create('native', _('native_display_name'), _('native_description'), [],
+                          level=ComponentMetadata.Level.Statement)
 class CNative(Component):
     class FNativeInterface(IComponentInterface):
         def __init__(self, graphics: IComponentGraphics):

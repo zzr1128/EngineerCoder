@@ -63,34 +63,39 @@ class CArithmeticOperator(Component):
 
 @clk.register
 @Component.use__interface
-@ComponentMetadata.create('plus', _('plus_display_name'), _('plus_description'), [])
+@ComponentMetadata.create('plus', _('plus_display_name'), _('plus_description'), [],
+                          level=ComponentMetadata.Level.Expression)
 class CPlus(CArithmeticOperator):
     pass
 
 
 @clk.register
 @Component.use__interface
-@ComponentMetadata.create('minus', _('minus_display_name'), _('minus_description'), [])
+@ComponentMetadata.create('minus', _('minus_display_name'), _('minus_description'), [],
+                          level=ComponentMetadata.Level.Expression)
 class CMinus(CArithmeticOperator):
     pass
 
 
 @clk.register
 @Component.use__interface
-@ComponentMetadata.create('multiply', _('multiply_display_name'), _('multiply_description'), [])
+@ComponentMetadata.create('multiply', _('multiply_display_name'), _('multiply_description'), [],
+                          level=ComponentMetadata.Level.Expression)
 class CMultiply(CArithmeticOperator):
     pass
 
 
 @clk.register
 @Component.use__interface
-@ComponentMetadata.create('divide', _('divide_display_name'), _('divide_description'), [])
+@ComponentMetadata.create('divide', _('divide_display_name'), _('divide_description'), [],
+                          level=ComponentMetadata.Level.Expression)
 class CDivide(CArithmeticOperator):
     pass
 
 
 @clk.register
 @Component.use__interface
-@ComponentMetadata.create('modulus', _('modulus_display_name'), _('modulus_description'), [])
+@ComponentMetadata.create('modulus', _('modulus_display_name'), _('modulus_description'), [],
+                          level=ComponentMetadata.Level.Expression)
 class CModulus(CArithmeticOperator):
     pass

@@ -14,7 +14,8 @@ from kits.common.localization import _
 
 @clk.register
 @Component.use__interface
-@ComponentMetadata.create('assign', _('assign_display_name'), _('assign_description'), [])
+@ComponentMetadata.create('assign', _('assign_display_name'), _('assign_description'), [],
+                          level=ComponentMetadata.Level.Statement)
 class CAssign(Component):
     class FAssignInterface(IComponentInterface):
         lt_value_of: Final[string] = _('label_value_of')
@@ -33,6 +34,8 @@ class CAssign(Component):
             # Visual code edits accept code snippets and components inserted via completion
             self.edit_value = graphics.create_visual_code_edit(
                 QRectF(0, 0, CLLibrary.GLinearLayout.FillWidth - 10, 30))
+            # The assigned value is an expression context
+            self.edit_value.filter(ComponentMetadata.Level.Expression)
             self.check_constant = graphics.create_checkbox(self.lt_constant, self.font)
             self.layout = CLLibrary.GLinearLayout()
             self.layout.add_element(self.label_value_of, null, null, null)
