@@ -216,6 +216,9 @@ class VisualCodeEdit(HyperTextEdit):
         """
         super().__init__(parent)
         self.graphics: IComponentGraphics = graphics
+        # Whether code completion takes part in this edit (see ``setCompletionsEnabled``);
+        # must exist before ``_sync_kit_completions`` runs below
+        self._completions_enabled: bool = True
         self.completions: IList[VisualCodeEdit.CompletionEntry] = [
             VisualCodeEdit.CompletionEntry(entry.keyword, entry.component_name,
                                            entry.description or self._entry_description(entry.component_name))
@@ -266,6 +269,39 @@ class VisualCodeEdit(HyperTextEdit):
         self.completions.append(VisualCodeEdit.CompletionEntry(
             keyword, component_name, description or self._entry_description(component_name)))
 
+    def setCompletionsEnabled(self, enabled: bool) -> void:
+        """
+        Enable or disable code completion in this edit.
+
+        When disabled, the completion popup never shows, no typed keyword is confirmed
+        into a component, and the keywords kits contribute are never absorbed: the entries
+        absorbed so far are dropped as well, and restored when completion is enabled again.
+        Unlike merely clearing ``completions`` (which the kit synchronization on every
+        keystroke refills), the disabled state is persistent. Intended for plain-name
+        fields that must never embed components.
+        :param enabled: whether code completion takes part
+        """
+        if enabled == self._completions_enabled:
+            return
+        self._completions_enabled = enabled
+        if enabled:
+            # Rebuild the default entries, then absorb whatever kits contributed meanwhile
+            self.completions[:] = [
+                VisualCodeEdit.CompletionEntry(entry.keyword, entry.component_name,
+                                               entry.description or self._entry_description(entry.component_name))
+                for entry in VisualCodeEdit.DefaultCompletions
+            ]
+            self._sync_kit_completions()
+        else:
+            self._hide_popup()
+            self.completions.clear()  # Plain names never complete into any component
+
+    def completionsEnabled(self) -> bool:
+        """
+        :return: whether code completion takes part in this edit
+        """
+        return self._completions_enabled
+
     def filter(self, level: int, block: IEnumerable[string] = (), bypass: IEnumerable[string] = ()) -> void:
         """
         Restrict the code completion by component level.
@@ -298,6 +334,8 @@ class VisualCodeEdit(HyperTextEdit):
         registry (``KitManager.completions``) but this edit does not know yet.
         The level filter still applies to the absorbed entries (see ``filter``).
         """
+        if not self._completions_enabled:  # Disabled edits never absorb kit keywords
+            return
         kit_manager = Environment.instance().kit_manager
         for keyword, component_name in kit_manager.completions.items():
             if any(entry.component_name == component_name for entry in self.completions):
@@ -613,10 +651,24 @@ class VisualCodeEdit(HyperTextEdit):
     def _detach_component(self, object_name: string) -> void:
         """
         Detach the component whose placeholder has the specified object name from the canvas.
+
+        Components nested inside the edits of the interface are registered flatly on the
+        same graphics, so they are routed through their own edits' regular removal
+        machinery recursively; otherwise their interfaces would keep being painted after
+        the enclosing component is gone. Their placeholders stay in the nested documents
+        (hidden), so undo cascades the reattachment through the usual repaint path of
+        hidden placeholders.
         """
         component = self._spacer_components.get(object_name, null)
         if component is null:
             return
+        # noinspection bad-argument-type
+        for widget in self._interface_widgets(component):
+            if isinstance(widget, VisualCodeEdit):
+                for nested in list(widget.inserted_components):
+                    spacer = widget._component_spacers.get(nested, null)
+                    if spacer is not null:
+                        widget.removeObject(spacer)
         components = getattr(self.graphics, 'components', null)
         # noinspection unresolved-references
         if components is not null and component.interface in components:
@@ -655,6 +707,7 @@ class VisualCodeEdit(HyperTextEdit):
         component = self._spacer_components.get(widget.objectName(), null)
         if component is not null and self._selected_component is component:
             self._selected_component = null  # The placeholder is being removed; drop the state
+            widget.setStyleSheet('')
         self._detach_component(widget.objectName())
         super().removeObject(widget)
 
@@ -1209,6 +1262,9 @@ class VisualCodeEdit(HyperTextEdit):
         """
         Refresh the completion popup according to the word being typed.
         """
+        if not self._completions_enabled:
+            self._hide_popup()
+            return
         self._sync_kit_completions()  # Kits imported after the edit construction still contribute
         prefix = self._current_word()
         if not prefix:
@@ -1355,7 +1411,7 @@ class VisualCodeEdit(HyperTextEdit):
             elif self._selected_component is not null:
                 self.clear_selection()
 
-            if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and self._completions_enabled:
                 # Popup hidden (e.g. dismissed by Escape): still confirm an exactly typed keyword
                 entry = self._lookup_entry(self._current_word())
                 if entry is not null:

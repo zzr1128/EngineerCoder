@@ -12,6 +12,28 @@ from kits.common.clk import clk
 from kits.common.localization import _
 
 
+def counter_name(occupied: ICollection[string]) -> string:
+    """
+    Pick an unoccupied counter name for a count loop.
+
+    Candidates are tried in order: the conventional ``i``, ``j``, ``k`` first;
+    when all of them are occupied, fall back to ``_ec_xxx`` with ``xxx`` counting
+    up from 1. The caller occupies the returned name for the loop's scope.
+    This naming scheme is the single extension point for loop counters: future
+    features that need to address a loop iteration (e.g. "do something at the
+    y-th repetition") should derive their identifiers here.
+    :param occupied: identifiers already occupied by enclosing loop scopes
+    :return: the first candidate that is not occupied yet
+    """
+    for candidate in ('i', 'j', 'k'):
+        if candidate not in occupied:
+            return candidate
+    index = 1
+    while f'_ec_{index}' in occupied:
+        index += 1
+    return f'_ec_{index}'
+
+
 @clk.register
 @Component.use__interface
 @ComponentMetadata.create('loop', _('loop_display_name'), _('loop_description'), [],
@@ -100,6 +122,7 @@ class CFor(Component):
     class FForInterface(IComponentInterface):
         lt_repeat: Final[string] = _('label_repeat')
         lt_times: Final[string] = _('label_times')
+        lt_counter: Final[string] = _('label_counter')
 
         def __init__(self, graphics: IComponentGraphics):
             super().__init__(graphics)
@@ -108,6 +131,11 @@ class CFor(Component):
             graphics.label_metric_width(self.label_repeat, modify=True)
             self.label_times = graphics.create_native_label(self.lt_times, self.font)
             graphics.label_metric_width(self.label_times, modify=True)
+            self.label_counter = graphics.create_native_label(self.lt_counter, self.font)
+            graphics.label_metric_width(self.label_counter, modify=True)
+            # The counter name is a plain identifier: a single-line edit never embeds
+            # components; leaving it empty lets compilation name the counter itself
+            self.edit_counter = graphics.create_lineedit(QRectF(0, 0, 120, 24))
             # Visual code edits accept code snippets and components inserted via completion
             self.edit_count = graphics.create_visual_code_edit(QRectF(0, 0, CLLibrary.GLinearLayout.FillWidth - 10, 30))
             self.edit_body = graphics.create_visual_code_edit(QRectF(0, 0, CLLibrary.GLinearLayout.FillWidth - 10, 30))
@@ -122,6 +150,8 @@ class CFor(Component):
                                     - self.layout.horizonal_padding,
                                     null, graphics=graphics)
             self.layout.add_element(self.label_times, CLLibrary.GLinearLayout.ElementRowPolicy.NoBreak, null, null)
+            self.layout.add_element(self.label_counter, CLLibrary.GLinearLayout.ElementRowPolicy.New, null, null)
+            self.layout.add_element(self.edit_counter, CLLibrary.GLinearLayout.ElementRowPolicy.NoBreak, null, null)
             self.layout.add_element(self.edit_body, CLLibrary.GLinearLayout.ElementRowPolicy.Exclusive,
                                     CLLibrary.GLinearLayout.FillWidth, null, graphics=graphics)
             self.color = graphics.alloc_color()
@@ -147,11 +177,12 @@ class CFor(Component):
         return self._interface.edit_count  # The repetition count is the first required field
 
     def editableWidgets(self) -> IList[QWidget]:
-        return [self._interface.edit_count, self._interface.edit_body]
+        return [self._interface.edit_count, self._interface.edit_counter, self._interface.edit_body]
 
     def __serialize__(self) -> dict:
         return {
             'count': serialize(self._interface.edit_count),
+            'counter': self._interface.edit_counter.text(),
             'body': serialize(self._interface.edit_body)
         }
 
@@ -168,5 +199,9 @@ class CFor(Component):
         require_member(data, 'count', 'body')
         component = cls(parent, graphics)
         component._interface.edit_count.load(data['count'])
+        # 'counter' is absent in archives made before the counter field existed
+        counter = data.get('counter', '')
+        require_type(counter, string, 'counter')
+        component._interface.edit_counter.setText(counter)
         component._interface.edit_body.load(data['body'])
         return component

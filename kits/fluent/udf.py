@@ -15,12 +15,18 @@ source strings.
 """
 
 from alias import *
+
 from core.build import Compiler
 from core.component import Component, ComponentDelegation, ComponentMetadata
 from core.environment import Environment
 from kits.fluent.fluent import UDF, fluent
 
 Indent: Final[string] = '    '
+
+# Identifiers occupied by the counters of count loops currently in scope, carried
+# in the compiler's products: an enclosing loop occupies its counter while its body
+# renders, so nested loops pick distinct names and siblings reuse freed ones
+OccupiedKey: Final[string] = '_ec_counters'
 
 
 def render_edit(data: IDictionary[string, Any], builder: Compiler) -> string:
@@ -202,7 +208,9 @@ class UdfLoop(UdfDelegation):
 
 @fluent.register
 class UdfFor(UdfDelegation):
-    """Count loop compiles into a ``for`` over an internal counter."""
+    """Count loop compiles into a ``for`` over a counter: an explicit counter name
+    from the archive is used as is; otherwise the first available identifier is
+    occupied (see ``counter_name``)."""
 
     @classmethod
     def delegated(cls) -> ComponentDelegation.DelegationTarget:
@@ -210,10 +218,28 @@ class UdfFor(UdfDelegation):
 
     @classmethod
     def render(cls, data: IDictionary[string, Any], builder: Compiler) -> string:
+        # Deferred import: loading kits.common.loop at module level would import the
+        # whole common kit ahead of this one, breaking the kit importation order
+        from kits.common.loop import counter_name
         require_member(data, 'count', 'body')
         count = render_edit(data['count'], builder).strip()
-        body = render_edit(data['body'], builder)
-        return f'for (int _ec_i = 0; _ec_i < ({count}); ++_ec_i) {_block(body)}'
+        occupied: HashSet[string] = builder.products.setdefault(OccupiedKey, HashSet[string]())
+        # 'counter' is absent in archives made before the counter field existed
+        named: string = data.get('counter', '')
+        require_type(named, string, 'counter')
+        counter = named.strip()
+        if not counter:
+            counter = counter_name(occupied)
+        # Occupy the counter while the body renders; release it afterwards unless an
+        # enclosing scope had occupied the same name already (explicit duplicates)
+        fresh = counter not in occupied
+        occupied.add(counter)
+        try:
+            body = render_edit(data['body'], builder)
+        finally:
+            if fresh:
+                occupied.discard(counter)
+        return f'for (int {counter} = 0; {counter} < ({count}); ++{counter}) {_block(body)}'
 
 
 @fluent.register

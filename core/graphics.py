@@ -8,10 +8,11 @@ from PySide6.QtGui import QColor, QFont, QFontMetrics, QFontMetricsF
 from PySide6.QtWidgets import QWidget, QLineEdit, QTextEdit, QLabel, QCheckBox
 
 from alias import *
-from alias import Nullable
 
 if TYPE_CHECKING:
     from core.component import IComponentInterface
+    from core.hyper_text_edit import HyperTextEdit
+    from interface.visual_code_edit import VisualCodeEdit
 
 
 @final
@@ -379,7 +380,7 @@ class IComponentGraphics:
         raise NotImplementedError
 
     @pure_virtual
-    def create_hypertext_edit(self, rect: QRect | QRectF) -> '__import__("hyper_text_edit").HyperTextEdit':
+    def create_hypertext_edit(self, rect: QRect | QRectF) -> 'HyperTextEdit':
         """
         Create a hyper-text edit control at the specified offset relative to the anchor point.
         :param rect: offset position and size
@@ -387,7 +388,7 @@ class IComponentGraphics:
         raise NotImplementedError
 
     @pure_virtual
-    def create_visual_code_edit(self, rect: QRect | QRectF) -> '__import__("interface.visual_code_edit").VisualCodeEdit':
+    def create_visual_code_edit(self, rect: QRect | QRectF) -> 'VisualCodeEdit':
         """
         Create a visual-code edit control at the specified offset relative to the anchor point.
         :param rect: offset position and size

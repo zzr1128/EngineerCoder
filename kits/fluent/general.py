@@ -24,12 +24,13 @@ one C translation unit starting with ``#include "udf.h"``.
 """
 
 from PySide6.QtCore import QRectF
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import QLabel, QLineEdit, QWidget
 
 from alias import *
 from core.build import Compiler
 from core.component import Component, ComponentMetadata, IComponentInterface
+from core.environment import Environment
 from core.graphics import IComponentGraphics
 from core.kit import KitManager
 from kits.common.library import CLLibrary
@@ -65,8 +66,28 @@ class CFluentMacro(Component, abstract):
             macro_font = QFont("Courier New", 10, QFont.Weight.Bold)
             self.label_macro = graphics.create_native_label(owner.macro, macro_font)
             graphics.label_metric_width(self.label_macro, modify=True)
+            # Every DEFINE_* macro names the function it declares, so the name
+            # field is always captioned with the identifier label
+            self.label_name = graphics.create_native_label(self.lt_name, self.font)
+            graphics.label_metric_width(self.label_name, modify=True)
             self.label_body = graphics.create_native_label(self.lt_body, self.font)
             graphics.label_metric_width(self.label_body, modify=True)
+            # A short caption restating what the macro is for in plain words (the
+            # localized component description), so non-programmer users can tell
+            # the macros apart; drop the macro-name prefix the description carries
+            brief = owner.meta().description
+            for separator in ('：', ': '):  # Punctuation of both locale languages
+                if brief.startswith(owner.macro + separator):
+                    brief = brief[len(owner.macro) + len(separator):]
+                    break
+            self.label_brief = graphics.create_native_label(brief, self.font)
+            graphics.label_metric_width(self.label_brief, modify=True)
+            try:
+                colors = Environment.instance().theme.colors
+                subdued = QColor.fromRgb(colors.foreground.rgb() // 2 + colors.background.rgb() // 2)
+            except Exception:  # Headless contexts without a loaded theme
+                subdued = QColor('#808080')
+            self.label_brief.setStyleSheet(f'color: {subdued.name()};')
             # The function name and the parameter identifiers are plain names:
             # single-line edits never embed components
             self.edit_name = graphics.create_lineedit(QRectF(0, 0, 140, 24))
@@ -88,19 +109,31 @@ class CFluentMacro(Component, abstract):
             self.layout = CLLibrary.GLinearLayout()
             self.layout.add_element(self.label_macro, null, null, null)
             if self.arg_labels:
-                # Reserve the argument labels and identifier edits plus the
-                # paddings before them, so the header row ends at the right margin
-                reserved = sum(label.width() for label in self.arg_labels) \
+                # Reserve the identifier label, the argument labels and identifier
+                # edits plus the paddings before them, so the header row ends at
+                # the right margin while it fits the container
+                reserved = self.label_name.width() + self.layout.horizonal_padding \
+                           + sum(label.width() for label in self.arg_labels) \
                            + sum(edit.width() for edit in self.arg_edits) \
                            + 2 * len(self.arg_labels) * self.layout.horizonal_padding
+                self.layout.add_element(self.label_name, CLLibrary.GLinearLayout.ElementRowPolicy.NoBreak,
+                                        null, null)
+                # The name edit never shrinks below its natural width: when the
+                # header is too long for the container (many parameters), the
+                # argument pairs wrap below it instead of spilling past the edge
                 self.layout.add_element(self.edit_name, CLLibrary.GLinearLayout.ElementRowPolicy.NoBreak,
                                         CLLibrary.GLinearLayout.FillWidth - reserved,
-                                        null)
+                                        null, min_width=self.edit_name.width())
                 for label, edit in zip(self.arg_labels, self.arg_edits):
-                    self.layout.add_element(label, CLLibrary.GLinearLayout.ElementRowPolicy.NoBreak, null, null)
+                    # A label may start a new row; its edit glues to it (NoBreak),
+                    # so the layout wraps the pair as a whole
+                    self.layout.add_element(label, CLLibrary.GLinearLayout.ElementRowPolicy.Default, null, null)
                     self.layout.add_element(edit, CLLibrary.GLinearLayout.ElementRowPolicy.NoBreak, null, null)
             else:
+                self.layout.add_element(self.label_name, CLLibrary.GLinearLayout.ElementRowPolicy.NoBreak,
+                                        null, null)
                 self.layout.add_element(self.edit_name, CLLibrary.GLinearLayout.ElementRowPolicy.Break, null, null)
+            self.layout.add_element(self.label_brief, CLLibrary.GLinearLayout.ElementRowPolicy.New, null, null)
             self.layout.add_element(self.label_body, null, null, null)
             self.layout.add_element(self.edit_body, CLLibrary.GLinearLayout.ElementRowPolicy.Exclusive,
                                     CLLibrary.GLinearLayout.FillWidth, null, graphics=graphics)
