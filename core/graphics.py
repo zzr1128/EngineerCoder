@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QPoint, QRect, Qt, QRectF, QPointF
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QFontMetricsF
-from PySide6.QtWidgets import QWidget, QLineEdit, QTextEdit, QLabel, QCheckBox
+from PySide6.QtWidgets import QWidget, QLineEdit, QTextEdit, QLabel, QCheckBox, QComboBox
 
 from alias import *
 
@@ -441,6 +441,14 @@ class IComponentGraphics:
         :param font: font of the check box
 
         This method will automatically compute the size of the check box.
+        """
+        raise NotImplementedError
+
+    @pure_virtual
+    def create_combobox(self, rect: QRect | QRectF) -> QComboBox:
+        """
+        Create a drop-down selection control at the specified offset relative to the anchor point.
+        :param rect: offset position and size
         """
         raise NotImplementedError
 

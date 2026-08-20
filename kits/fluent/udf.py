@@ -12,7 +12,15 @@ contract persistence uses), so components embedded inside visual code edits are
 compiled recursively without touching component internals. Rendered fragments of
 top-level components are accumulated in ``builder.products[UDF.id]`` as a list of
 source strings.
+
+Variables annotated ``auto`` (see ``kits.common.assign``) are declared once, at
+the top of the smallest block shared by every definition and reference of the
+name: ``analyze_scope`` pre-scans the translation-unit archive for such names
+and records the declarations per block (``ScopeKey``), and the renderers of the
+block-introducing edits emit them ahead of the block contents.
 """
+
+import re
 
 from alias import *
 
@@ -27,6 +35,23 @@ Indent: Final[string] = '    '
 # in the compiler's products: an enclosing loop occupies its counter while its body
 # renders, so nested loops pick distinct names and siblings reuse freed ones
 OccupiedKey: Final[string] = '_ec_counters'
+
+# Declarations lifted to block tops for ``auto`` variables (see ``analyze_scope``):
+# maps the identity of a block-introducing edit archive to the declarations that
+# must precede its contents; carried in the compiler's products
+ScopeKey: Final[string] = '_ec_scope'
+
+# Archive keys that open a fresh block scope; the other keys of a component
+# archive (conditions, counts, values) stay in the enclosing scope
+_BlockKeys: Final[frozenset[string]] = frozenset(('then', 'else', 'body'))
+
+# Heuristic scalar declarations in free C text (``int counter = 0;``,
+# ``real area;``...): qualifier tokens, a scalar type and a simple declarator,
+# capturing the declared type (1) and name (2); detects externally defined variables
+_Declaration: Final[re.Pattern] = re.compile(
+    r'\b((?:(?:const|static|extern|unsigned|signed|volatile|struct)\s+)*'
+    r'(?:int|real|float|double|char|bool|long|short|size_t)\s*\**)\s*'
+    r'([A-Za-z_]\w*)\s*(?:=[^=]|\[|;|,)')
 
 
 def render_edit(data: IDictionary[string, Any], builder: Compiler) -> string:
@@ -110,7 +135,140 @@ def render_unit(data: IDictionary[string, Any], builder: Compiler) -> string:
         else:
             chunks.append(render_component(serialized_component['name'], serialized_component['data'], builder))
     chunks.append(segments[-1])
-    return ''.join(chunks)
+    # Declarations lifted to the unit root precede everything else
+    return _hoist_prefix(builder, data) + ''.join(chunks)
+
+
+def analyze_scope(unit_data: IDictionary[string, Any], builder: Compiler) -> void:
+    """
+    Pre-analyze a translation-unit archive for ``auto`` variables and record the
+    declarations their renderers must lift (see ``ScopeKey``).
+
+    An assignment annotated ``auto`` introduces a variable whose single ``real``
+    declaration belongs at the top of the smallest block enclosing every
+    definition and every reference of the name, so all uses compile against a
+    declared identifier. The analysis identifies blocks by the identity of the
+    edit archive that opens them, therefore it must run on the very archive the
+    renderers consume (``render_unit``), and once per translation unit.
+
+    Identifiers declared at the unit root (external C declarations in the free
+    text) occupy the counter names of count loops as well, so auto-named loops
+    never shadow them (see ``OccupiedKey``).
+    :param unit_data: serialization of the translation-unit edit
+    :param builder: the compiler context receiving the hoisted declarations
+    """
+    hoist: IDictionary[int, IList[string]] = {}
+    builder.products[ScopeKey] = hoist
+    occupied: HashSet[string] = builder.products.setdefault(OccupiedKey, HashSet[string]())
+
+    definitions: IDictionary[string, IList[tuple[int, ...]]] = {}
+
+    def collect_definition(name: string, data: Any, path: tuple[int, ...]) -> void:
+        maybe_unused(path)
+        if name != 'clk.assign' or not isinstance(data, dict) or data.get('constant'):
+            return
+        # The annotation evolved from a legacy ``visibility`` (``auto`` lifted the
+        # declaration) to the ``local_only`` flag (its inversion lifts it)
+        if 'local_only' in data:
+            if data['local_only']:
+                return
+        elif data.get('visibility', 'local') != 'auto':
+            return
+        target = data.get('name', '')
+        if isinstance(target, dict):
+            # A target embedding components names no plain variable
+            target = target.get('text', '') if not target.get('components') else ''
+        if isinstance(target, string) and target.strip():
+            definitions.setdefault(target.strip(), []).append(path)
+
+    def seed_occupation(text: string, path: tuple[int, ...]) -> void:
+        if path:
+            return  # Declarations inside functions stay local to them
+        for match in _Declaration.finditer(text):
+            occupied.add(match.group(2))
+
+    _walk_archive(unit_data, (), seed_occupation, collect_definition)
+    if not definitions:
+        return
+
+    patterns = {name: re.compile(rf'\b{re.escape(name)}\b') for name in definitions}
+    references: IDictionary[string, IList[tuple[int, ...]]] = {}
+
+    def collect_reference(text: string, path: tuple[int, ...]) -> void:
+        for name, pattern in patterns.items():
+            if pattern.search(text):
+                references.setdefault(name, []).append(path)
+
+    def collect_component_reference(name: string, data: Any, path: tuple[int, ...]) -> void:
+        # Native code and member accesses mention names as plain text too
+        if name == 'clk.native' and isinstance(data, dict):
+            code = data.get('code', '')
+            if isinstance(code, string):
+                collect_reference(code, path)
+        elif name == 'clk.field' and isinstance(data, dict):
+            for key in ('owner', 'member'):
+                text = data.get(key, '')
+                if isinstance(text, string):
+                    collect_reference(text, path)
+
+    _walk_archive(unit_data, (), collect_reference, collect_component_reference)
+
+    for name, sites in definitions.items():
+        paths = sites + references.get(name, [])
+        common = _common_prefix(paths)
+        # The innermost common block; the unit root when nothing deeper is shared
+        block = common[-1] if common else id(unit_data)
+        hoist.setdefault(block, []).append(f'real {name};')
+
+
+def _hoist_prefix(builder: Compiler, edit_data: IDictionary[string, Any]) -> string:
+    """
+    :return: the declarations ``analyze_scope`` lifted to the top of the block
+        a block-introducing edit archive opens (empty when none, or when no
+        scope analysis ran on the enclosing translation unit)
+    """
+    hoist = builder.products.get(ScopeKey, {})
+    declarations: IList[string] = hoist.get(id(edit_data), [])
+    return ''.join(declaration + '\n' for declaration in declarations)
+
+
+def _walk_archive(archive: IDictionary[string, Any], path: tuple[int, ...],
+                  on_text: Callable[[string, tuple[int, ...]], Any],
+                  on_component: Callable[[string, Any, tuple[int, ...]], Any]) -> void:
+    """
+    Traverse an edit archive depth-first, visiting every free-text segment and
+    every serialized component.
+    :param archive: serialization of an edit (text plus components)
+    :param path: identities of the block-introducing archives enclosing this one
+    :param on_text: called with each placeholder-free text segment and its path
+    :param on_component: called with each component's name, data and path
+    """
+    require_member(archive, 'text', 'components')
+    for segment in archive['text'].split('\uFFFC'):
+        if segment:
+            on_text(segment, path)
+    for serialized_component in archive['components']:
+        require_member(serialized_component, 'name', 'data')
+        name, data = serialized_component['name'], serialized_component['data']
+        on_component(name, data, path)
+        if isinstance(data, dict):
+            for key, value in data.items():
+                if isinstance(value, dict) and 'text' in value and 'components' in value:
+                    sub = path + (id(value),) if key in _BlockKeys else path
+                    _walk_archive(value, sub, on_text, on_component)
+
+
+def _common_prefix(paths: IList[tuple[int, ...]]) -> tuple[int, ...]:
+    """
+    :return: the longest block chain shared by every path (the innermost common
+        block scope); empty when the paths diverge right from the unit root
+    """
+    prefix: IList[int] = []
+    for levels in zip(*paths):
+        if any(level != levels[0] for level in levels[1:]):
+            break
+        prefix.append(levels[0])
+    return tuple(prefix)
 
 
 def _indent(source: string, level: int = 1) -> string:
@@ -182,8 +340,8 @@ class UdfBranch(UdfDelegation):
     def render(cls, data: IDictionary[string, Any], builder: Compiler) -> string:
         require_member(data, 'cond', 'then', 'else')
         cond = render_edit(data['cond'], builder).strip()
-        then = render_edit(data['then'], builder)
-        otherwise = render_edit(data['else'], builder)
+        then = _hoist_prefix(builder, data['then']) + render_edit(data['then'], builder)
+        otherwise = _hoist_prefix(builder, data['else']) + render_edit(data['else'], builder)
         source = f'if ({cond}) {_block(then)}'
         if otherwise.strip():
             source += f' else {_block(otherwise)}'
@@ -202,7 +360,7 @@ class UdfLoop(UdfDelegation):
     def render(cls, data: IDictionary[string, Any], builder: Compiler) -> string:
         require_member(data, 'cond', 'body')
         cond = render_edit(data['cond'], builder).strip()
-        body = render_edit(data['body'], builder)
+        body = _hoist_prefix(builder, data['body']) + render_edit(data['body'], builder)
         return f'while ({cond}) {_block(body)}'
 
 
@@ -235,7 +393,7 @@ class UdfFor(UdfDelegation):
         fresh = counter not in occupied
         occupied.add(counter)
         try:
-            body = render_edit(data['body'], builder)
+            body = _hoist_prefix(builder, data['body']) + render_edit(data['body'], builder)
         finally:
             if fresh:
                 occupied.discard(counter)
@@ -245,7 +403,9 @@ class UdfFor(UdfDelegation):
 @fluent.register
 class UdfAssign(UdfDelegation):
     """Assignment compiles into ``name = value;``; checking ``constant`` declares
-    the value as a ``const real`` instead (UDF uses ``real`` for floating point)."""
+    the value as a ``const real`` instead (UDF uses ``real`` for floating point).
+    The target may embed a member access (``cell.volume``...) since it archives
+    as a visual code edit."""
 
     @classmethod
     def delegated(cls) -> ComponentDelegation.DelegationTarget:
@@ -254,12 +414,18 @@ class UdfAssign(UdfDelegation):
     @classmethod
     def render(cls, data: IDictionary[string, Any], builder: Compiler) -> string:
         require_member(data, 'name', 'value', 'constant')
-        require_type(data['name'], string, 'name')
         require_type(data['constant'], bool, 'constant')
+        name = data['name']
+        if isinstance(name, dict):
+            name = render_edit(name, builder)
+        else:
+            # Archives made before the target could embed components kept a plain name
+            require_type(name, string, 'name')
+        name = name.strip()
         value = render_edit(data['value'], builder).strip()
         if data['constant']:
-            return f'const real {data["name"]} = {value};'
-        return f'{data["name"]} = {value};'
+            return f'const real {name} = {value};'
+        return f'{name} = {value};'
 
 
 class UdfOperator(UdfDelegation):

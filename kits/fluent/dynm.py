@@ -63,5 +63,6 @@ class CCgMotion(CFluentMacro):
 # Contribute the completion keywords of the macro components to the global
 # registry, so any visual code edit picks them up (filtered by level)
 for _comp in (CGridMotion, CCgMotion):
+    _comp.meta().kind = ComponentMetadata.Kind.Macro
     KitManager.instance().add_completion(_comp.completion_keyword,
                                          KitManager.merge_names('fluent', _comp.meta().name))

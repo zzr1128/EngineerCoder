@@ -29,11 +29,13 @@ from PySide6.QtWidgets import QLabel, QLineEdit, QWidget
 
 from alias import *
 from core.build import Compiler
+from core.completer import Completion
 from core.component import Component, ComponentMetadata, IComponentInterface
 from core.environment import Environment
 from core.graphics import IComponentGraphics
 from core.kit import KitManager
 from kits.common.library import CLLibrary
+from kits.fluent.analyzer import register_scope_contributor
 from kits.fluent.fluent import UDF, fluent
 from kits.fluent.localization import _
 
@@ -212,7 +214,8 @@ class CFluentMacro(Component, abstract):
                                      f'got {len(data["args"])}')
         parts = [data['name'].strip()]
         parts.extend(string(arg).strip() for arg in data['args'])
-        body = udf.render_edit(data['body'], builder)
+        # The body is a fresh block: declarations lifted into it precede its contents
+        body = udf._hoist_prefix(builder, data['body']) + udf.render_edit(data['body'], builder)
         return f'{cls.macro}({", ".join(parts)})\n{udf._block(body)}'
 
     def compile(self, builder: Compiler) -> void:
@@ -390,7 +393,11 @@ class CTranslationUnit(Component):
         """
         from kits.fluent import udf  # Deferred: udf.py and general.py share the kit entry chain
 
-        body = udf.render_unit(serialize(self._interface.edit_body), builder).strip()
+        data = serialize(self._interface.edit_body)
+        # Lift the declarations of the auto variables before rendering consumes
+        # the very same archive (the analysis keys blocks by archive identity)
+        udf.analyze_scope(data, builder)
+        body = udf.render_unit(data, builder).strip()
         source = '#include "udf.h"'
         if body:
             source += f'\n\n{body}'
@@ -398,8 +405,35 @@ class CTranslationUnit(Component):
         fragments.append(source)
 
 
-# Contribute the completion keywords of the macro components to the global
-# registry, so any visual code edit picks them up (filtered by level)
+# Description of the macro parameters in the popup detail pane
+lt_macro_param: Final[string] = _('desc_macro_param')
+
+
+def _macro_parameters(component: Component) -> IList[Completion]:
+    """The identifiers the macro's parameters declare: variables of the macro's
+    own scope (they never leave the function the macro defines)."""
+    if not isinstance(component, CFluentMacro):
+        return []
+    introduced: IList[Completion] = []
+    for edit in component.interface.arg_edits:
+        name = edit.text().strip()
+        if name:
+            introduced.append(Completion(keyword=name,
+                                         kind=ComponentMetadata.Kind.Variable,
+                                         visibility='scoped',
+                                         description=lt_macro_param))
+    return introduced
+
+
+# Mark the DEFINE_* macro components as macro-kind (completion glyph) and contribute
+# their completion keywords to the global registry, so any visual code edit picks
+# them up (filtered by level)
 for _comp in (CAdjust, CInit, CExecuteAtEnd, COnDemand, CRwFile, CDeltaT, CExecuteFromGui):
+    _comp.meta().kind = ComponentMetadata.Kind.Macro
     KitManager.instance().add_completion(_comp.completion_keyword,
                                          KitManager.merge_names('fluent', _comp.meta().name))
+
+# Contribute the parameters the macros declare to the scope analysis, so the
+# bodies of the macros complete them (the registration is idempotent, so the
+# sibling macro modules sharing this import never double it)
+register_scope_contributor(_macro_parameters)

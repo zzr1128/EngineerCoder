@@ -259,10 +259,12 @@ class CCphi(CFluentMacro):
     completion_keyword = 'cphi'
 
 
-# Contribute the completion keywords of the macro components to the global
-# registry, so any visual code edit picks them up (filtered by level)
+# Mark the DEFINE_* macro components as macro-kind (completion glyph) and contribute
+# their completion keywords to the global registry, so any visual code edit picks
+# them up (filtered by level)
 for _comp in (CProfile, CSource, CProperty, CDiffusivity, CTurbulentViscosity, CPrandtl,
               CTurbSchmidt, CSpecificHeat, CHeatFlux, CVrRate, CSrRate, CCavitationRate,
               CNoxRate, CSoxRate, CCphi):
+    _comp.meta().kind = ComponentMetadata.Kind.Macro
     KitManager.instance().add_completion(_comp.completion_keyword,
                                          KitManager.merge_names('fluent', _comp.meta().name))

@@ -1,20 +1,89 @@
 # -*- coding: utf-8 -*-
 
-from dataclasses import dataclass
 from math import ceil
 
 from PySide6.QtCore import QEvent, QObject, Qt, QPoint, QPointF, QRect, QRectF, QSize, QSizeF, QTimer, Signal
-from PySide6.QtGui import (QColor, QFocusEvent, QFontMetricsF, QKeyEvent, QMouseEvent, QMoveEvent, QPainter,
-                           QResizeEvent, QTextCharFormat, QTextCursor, QTextDocument, QTextFormat)
+from PySide6.QtGui import (QColor, QFocusEvent, QFontMetricsF, QIcon, QKeyEvent, QMouseEvent, QMoveEvent,
+                           QPainter, QPixmap, QResizeEvent, QTextCharFormat, QTextCursor, QTextDocument, QTextFormat)
 from PySide6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
                                QWidget)
 
 from alias import *
 from alias import Nullable
+from core.completer import Completion
 from core.component import Component, ComponentMetadata
 from core.environment import Environment
 from core.graphics import IComponentGraphics
 from core.hyper_text_edit import HyperTextEdit, HyperTextObject
+from core.resource import Resource
+
+# Theme-aware glyph file names of the completion symbol kinds (see ``ComponentMetadata.Kind``);
+# kinds absent here (builtin) show no icon, i.e. the glyph is omittable
+_KIND_ICON_FILES: Final[IDictionary[ComponentMetadata.Kind, string]] = {
+    ComponentMetadata.Kind.Macro: 'cpl_macro.svg',
+    ComponentMetadata.Kind.Variable: 'cpl_var.svg',
+}
+# (theme name, kind) -> loaded icon, so each glyph file is read once per theme
+_kind_icon_cache: IDictionary[tuple[string, ComponentMetadata.Kind], QIcon] = {}
+# Uniform decoration size of the completion rows, so every glyph occupies the
+# same column and the texts align regardless of the glyph shown
+_KIND_ICON_SIZE: Final[QSize] = QSize(16, 16)
+# Decoration size -> transparent placeholder occupying the glyph column of rows
+# that show no icon, keeping their texts aligned with the iconized rows
+_blank_icon_cache: IDictionary[QSize, QIcon] = {}
+
+
+def _resolve_entry_kind(entry: 'VisualCodeEdit.CompletionEntry') -> ComponentMetadata.Kind:
+    """
+    Resolve the symbol kind of a completion entry: an explicit kind (derived
+    suggestions, e.g. variables) wins; otherwise the kind declared by the
+    component metadata is used, defaulting to builtin when it cannot be resolved.
+    """
+    if entry.kind is not null:
+        return entry.kind
+    # noinspection broad-exception
+    try:
+        return Environment.instance().kit_manager.lookup(entry.component_name).kind
+    except Exception:
+        return ComponentMetadata.Kind.Builtin
+
+
+def _kind_icon(kind: ComponentMetadata.Kind) -> Nullable[QIcon]:
+    """
+    :param kind: a completion symbol kind
+    :return: the theme-aware glyph of the kind, or null when the kind shows no
+        icon (builtin) or the glyph file is unavailable
+    """
+    icon_file = _KIND_ICON_FILES.get(kind, null)
+    if icon_file is null:
+        return null  # Builtin (or unknown) kinds carry no glyph
+    # noinspection broad-exception
+    try:
+        theme_name = Environment.instance().theme.name.lower()
+    except Exception:
+        theme_name = 'light'
+    key = (theme_name, kind)
+    icon = _kind_icon_cache.get(key, null)
+    if icon is null:
+        path = Resource.resource_path('images', theme_name, icon_file)
+        icon = QIcon(str(path)) if path.is_file() else QIcon()
+        _kind_icon_cache[key] = icon
+    return icon if not icon.isNull() else null
+
+
+def _blank_icon(size: QSize = _KIND_ICON_SIZE) -> QIcon:
+    """
+    :param size: size of the glyph column to occupy
+    :return: a transparent icon occupying the glyph column, so rows without a
+        glyph reserve the same space and their texts align with the iconized rows
+    """
+    icon = _blank_icon_cache.get(size, null)
+    if icon is null:
+        pixmap = QPixmap(size)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        icon = QIcon(pixmap)
+        _blank_icon_cache[size] = icon
+    return icon
 
 
 class _CompletionPopup(QFrame):
@@ -43,6 +112,8 @@ class _CompletionPopup(QFrame):
         self.list = QListWidget(self)
         self.list.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.list.setFixedWidth(_CompletionPopup.ListWidth)
+        # Uniform glyph column: rows without an icon reserve the same space
+        self.list.setIconSize(_KIND_ICON_SIZE)
         layout.addWidget(self.list)
 
         # Detail pane showing the description of the highlighted entry
@@ -63,7 +134,15 @@ class _CompletionPopup(QFrame):
         self.entries = list(entries)
         self.list.clear()
         for entry in self.entries:
-            self.list.addItem(QListWidgetItem(f'{entry.keyword}    [{entry.component_name}]'))
+            text = entry.keyword
+            if entry.component_name:
+                text += f'    [{entry.component_name}]'
+            item = QListWidgetItem(text)
+            # Prefix the entry with the glyph of its symbol kind; kinds without a
+            # glyph (builtin) still reserve the glyph column, aligning the texts
+            icon = _kind_icon(_resolve_entry_kind(entry))
+            item.setIcon(icon if icon is not null else _blank_icon())
+            self.list.addItem(item)
         if self.entries:
             self.list.setCurrentRow(0)
 
@@ -186,11 +265,12 @@ class VisualCodeEdit(HyperTextEdit):
     stylesheet) so that the figures painted on the canvas show through.
     """
 
-    @dataclass
-    class CompletionEntry:
-        keyword: string           # Keyword typed by the user (e.g. 'if')
-        component_name: string    # Complete name of the component (e.g. 'clk.br')
-        description: string = ''  # Description shown in the popup detail pane
+    # A completion suggestion shown in the popup. Reuses the shared core type
+    # (``core.completer.Completion``): ``keyword`` (the word typed by the user),
+    # ``component_name`` (the component to insert, empty for derived suggestions),
+    # ``description`` (popup detail pane) and ``kind`` (symbol glyph, null defers
+    # to the component metadata).
+    CompletionEntry = Completion
 
     DefaultCompletions: ClassVar[IList[CompletionEntry]] = [
         CompletionEntry('if', 'clk.br'),
@@ -219,6 +299,13 @@ class VisualCodeEdit(HyperTextEdit):
         # Whether code completion takes part in this edit (see ``setCompletionsEnabled``);
         # must exist before ``_sync_kit_completions`` runs below
         self._completions_enabled: bool = True
+        # Whether completion is restricted to the suggestions completers derive from
+        # the project (see ``setDerivedCompletionsEnabled``); component entries take
+        # no part then, so the edit never embeds components
+        self._derived_only: bool = False
+        # Complete names of the components still taking part while completion is
+        # restricted to derived suggestions (see ``setDerivedCompletionsEnabled``)
+        self._derived_allowed: set[string] = set()
         self.completions: IList[VisualCodeEdit.CompletionEntry] = [
             VisualCodeEdit.CompletionEntry(entry.keyword, entry.component_name,
                                            entry.description or self._entry_description(entry.component_name))
@@ -302,6 +389,57 @@ class VisualCodeEdit(HyperTextEdit):
         """
         return self._completions_enabled
 
+    def setDerivedCompletionsEnabled(self, enabled: bool,
+                                     allowed_components: IEnumerable[string] = ()) -> void:
+        """
+        Restrict the completion of this edit to the suggestions the completers
+        derive from the project (e.g. variables discovered from assignments),
+        or lift the restriction.
+
+        While restricted, component entries take no part in the popup and nothing
+        typed confirms into a component, except the components listed in
+        ``allowed_components`` (e.g. a member access in an assignment target),
+        whose keywords are absorbed and confirm as usual. Intended for name
+        fields (e.g. the member fields) that embed no (or only selected)
+        components yet benefit from the project's variable names.
+        :param enabled: whether completion is restricted to derived suggestions
+        :param allowed_components: complete names of the components still taking
+            part while the restriction holds
+        """
+        self.setCompletionsEnabled(True)
+        self._derived_allowed = set(allowed_components) if enabled else set()
+        if enabled == self._derived_only:
+            if enabled:
+                # The allowed set changed: re-filter the existing component entries
+                self.completions[:] = [
+                    entry for entry in self.completions
+                    if not entry.component_name or entry.component_name in self._derived_allowed
+                ]
+            return
+        self._derived_only = enabled
+        if enabled:
+            self._hide_popup()
+            # Component entries play no part any more: drop them persistently,
+            # except the explicitly allowed ones
+            self.completions[:] = [
+                entry for entry in self.completions
+                if not entry.component_name or entry.component_name in self._derived_allowed
+            ]
+        else:
+            # Restore the component entries (defaults, then the kit keywords)
+            self.completions[:] = [
+                VisualCodeEdit.CompletionEntry(entry.keyword, entry.component_name,
+                                               entry.description or self._entry_description(entry.component_name))
+                for entry in VisualCodeEdit.DefaultCompletions
+            ]
+            self._sync_kit_completions()
+
+    def derivedCompletionsEnabled(self) -> bool:
+        """
+        :return: whether completion is restricted to derived suggestions
+        """
+        return self._derived_only
+
     def filter(self, level: int, block: IEnumerable[string] = (), bypass: IEnumerable[string] = ()) -> void:
         """
         Restrict the code completion by component level.
@@ -333,14 +471,64 @@ class VisualCodeEdit(HyperTextEdit):
         Absorb the completion keywords kits have contributed to the kit manager
         registry (``KitManager.completions``) but this edit does not know yet.
         The level filter still applies to the absorbed entries (see ``filter``).
+        While completion is restricted to derived suggestions, only the components
+        explicitly allowed there (see ``setDerivedCompletionsEnabled``) are absorbed.
         """
-        if not self._completions_enabled:  # Disabled edits never absorb kit keywords
+        if not self._completions_enabled:
+            return
+        if self._derived_only and not self._derived_allowed:  # No component entries then
             return
         kit_manager = Environment.instance().kit_manager
         for keyword, component_name in kit_manager.completions.items():
+            if self._derived_only and component_name not in self._derived_allowed:
+                continue
             if any(entry.component_name == component_name for entry in self.completions):
                 continue
             self.add_completion(keyword, component_name)
+
+    @final
+    def _component_takes_part(self, component_name: string) -> bool:
+        """
+        :return: whether a component entry may take part under the restriction
+            to derived suggestions (always when the restriction is off)
+        """
+        return not self._derived_only or component_name in self._derived_allowed
+
+    @final
+    def _sync_completer_completions(self) -> void:
+        """
+        Absorb the suggestions the registered completers (``Environment.completers``)
+        derive from the loaded project (e.g. variables discovered from assignments)
+        but this edit does not know yet. Skipped while completion is disabled or no
+        project is loaded. The level filter does not constrain derived suggestions:
+        they carry no component, so they stay available everywhere.
+
+        The edit passes itself as the requesting context, so scope-aware completers
+        restrict the suggestions to the names visible at it; the derived entries are
+        rebuilt on every synchronization, so suggestions that went out of scope (or
+        whose variable disappeared) never linger.
+        """
+        if not self._completions_enabled:
+            return
+        env = Environment.instance()
+        if env.project is null:
+            return
+        # Derived entries carry no component: drop the stale ones, then re-absorb
+        self.completions[:] = [entry for entry in self.completions if entry.component_name]
+        for completer_type in env.completers:
+            # noinspection broad-exception
+            try:
+                derived = completer_type(env.project).complete(self)
+            except Exception:  # A completer must never break the edition
+                continue
+            for completion in derived:
+                if any(entry.keyword == completion.keyword
+                       and entry.component_name == completion.component_name
+                       for entry in self.completions):
+                    continue
+                self.completions.append(VisualCodeEdit.CompletionEntry(
+                    completion.keyword, completion.component_name,
+                    completion.description, completion.kind))
 
     @final
     def _entry_description(self, component_name: string) -> string:
@@ -1266,6 +1454,7 @@ class VisualCodeEdit(HyperTextEdit):
             self._hide_popup()
             return
         self._sync_kit_completions()  # Kits imported after the edit construction still contribute
+        self._sync_completer_completions()  # Completers derive further suggestions from the project
         prefix = self._current_word()
         if not prefix:
             self._hide_popup()
@@ -1273,7 +1462,8 @@ class VisualCodeEdit(HyperTextEdit):
 
         lowered = prefix.lower()
         matches = [entry for entry in self.completions
-                   if entry.keyword.lower().startswith(lowered) and self._entry_participates(entry)]
+                   if entry.keyword.lower().startswith(lowered) and self._entry_participates(entry)
+                   and (not entry.component_name or self._component_takes_part(entry.component_name))]
         if not matches:
             self._hide_popup()
             return
@@ -1321,7 +1511,9 @@ class VisualCodeEdit(HyperTextEdit):
     @final
     def _confirm_completion(self, entry: CompletionEntry) -> void:
         """
-        Confirm a completion: remove the typed prefix and insert the bound component.
+        Confirm a completion: remove the typed prefix, then insert the bound
+        component; a derived suggestion carrying no component (e.g. a variable)
+        completes its keyword as plain text instead.
         """
         self._hide_popup()
 
@@ -1333,7 +1525,10 @@ class VisualCodeEdit(HyperTextEdit):
             cursor.removeSelectedText()
             self.setTextCursor(cursor)
 
-        self.insert_component(entry)
+        if entry.component_name and self._component_takes_part(entry.component_name):
+            self.insert_component(entry)
+        else:
+            self.insertPlainText(entry.keyword)  # Derived suggestion: complete the name as text
 
     @final
     def _style_popup(self, popup: _CompletionPopup) -> void:
@@ -1418,6 +1613,30 @@ class VisualCodeEdit(HyperTextEdit):
                     # noinspection bad-argument-type
                     self._confirm_completion(entry)
                     return
+
+            if key == Qt.Key.Key_Right and event.modifiers() == Qt.KeyboardModifier.NoModifier:
+                # The caret stands right before a component: enter it instead of
+                # stepping past it, landing at the beginning of its first editable
+                # field (components without fields keep the stepping behavior)
+                component = self._adjacent_component(False)
+                if component is not null:
+                    widgets = component.editableWidgets()
+                    if widgets:
+                        self.clear_selection()
+                        self._focus_editable(widgets[0], at_start=True)
+                        return
+
+            if key == Qt.Key.Key_Left and event.modifiers() == Qt.KeyboardModifier.NoModifier:
+                # The caret stands right behind a component: enter it instead of
+                # stepping past it, landing at the end of its last editable field
+                # (components without fields keep the stepping behavior)
+                component = self._adjacent_component(True)
+                if component is not null:
+                    widgets = component.editableWidgets()
+                    if widgets:
+                        self.clear_selection()
+                        self._focus_editable(widgets[-1], at_start=False)
+                        return
 
         super().keyPressEvent(event)
         self._update_completion()

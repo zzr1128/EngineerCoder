@@ -6,7 +6,7 @@ from math import ceil
 from shiboken6 import getCppPointer
 from PySide6.QtCore import Qt, QPoint, QRect, QRectF, QPointF, QLineF
 from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QPainterPath, QPaintEvent, QResizeEvent
-from PySide6.QtWidgets import QWidget, QTextEdit, QLineEdit, QLabel, QCheckBox
+from PySide6.QtWidgets import QWidget, QTextEdit, QLineEdit, QLabel, QCheckBox, QComboBox
 
 from alias import *
 from alias import Nullable
@@ -661,6 +661,22 @@ class EditionCanvas(QWidget, IComponentGraphics):
         box.setFont(font)
         hint = box.sizeHint()
         box.setFixedSize(hint.width(), hint.height())
+        box.show()  # Widgets created after the canvas is shown stay hidden unless shown explicitly
+        return box
+
+    def create_combobox(self, rect: QRect | QRectF) -> QComboBox:
+        """
+        Create a drop-down selection control at the specified offset relative to the anchor point.
+        See IComponentGraphics.create_combobox(rect).
+        """
+        box = QComboBox(self)
+        rect = self._absolute_rect(rect)
+        self._register_widget(box, EditionCanvas.WidgetAnnotation(rect))
+        EditionCanvas.translate_rect(r := rect.__copy__(), self)
+        if isinstance(r, QRectF):
+            r = r.toRect()
+        box.setGeometry(r)
+        box.setFixedSize(r.size())
         box.show()  # Widgets created after the canvas is shown stay hidden unless shown explicitly
         return box
 

@@ -19,6 +19,8 @@ from kits.fluent.dpm import CDpmInjectionInit, CDpmLaw, CDpmDrag, CDpmBodyForce,
 from kits.fluent.dynm import CGridMotion, CCgMotion
 # discrete ordinates (DO) radiation model UDF macro components
 from kits.fluent.do import CDomSource, CEmissivityWeightingFactor
+# completion analyzer (derives variable completions from assignments; registers itself)
+from kits.fluent import analyzer
 
 
 def kit_entry() -> Kit:

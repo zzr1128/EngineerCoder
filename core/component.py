@@ -102,6 +102,24 @@ class ComponentMetadata:
         Statement = 200
         Domain = 300
 
+    class Kind(enum.Enum):
+        """
+        Symbol kind of a component, classifying how it is presented in the code
+        completion (see ``VisualCodeEdit``): the kind selects the glyph shown in
+        front of the completion entry.
+
+        - ``Builtin``: language constructs (control flow, operators, ...); they
+          show **no** glyph.
+        - ``Macro``: ``DEFINE_*``-style macro components; they carry the
+          ``cpl_macro`` icon.
+        - ``Variable``: analyzer-derived variables; they carry the ``cpl_var``
+          icon. Components are never of this kind themselves; it is used by
+          completers (see ``core.completer``) for derived suggestions.
+        """
+        Builtin = 'builtin'
+        Macro = 'macro'
+        Variable = 'variable'
+
     name: string
     display_name: string
     description: string
@@ -110,17 +128,19 @@ class ComponentMetadata:
     delegations: Delegation
     # Level of the contexts the component may appear in (any int, see ``Level``);
     level: int
+    # Symbol kind driving the completion glyph (see ``Kind``); defaults to builtin
+    kind: Kind = Kind.Builtin
 
     @staticmethod
     def create(name: string, display_name: string, description: string, languages: IList[SupportedLanguage],
-               level: int = Level.Zero) -> Callable[[T], T]:
+               level: int = Level.Zero, kind: 'ComponentMetadata.Kind' = Kind.Builtin) -> Callable[[T], T]:
         def decorator(cls: T) -> T:
             if hasattr(cls, 'meta') and not getattr(cls.meta, '__isabstractmethod__', False):
                 raise TypeError(f'Component "{cls}" already has metadata')
             meta = ComponentMetadata(name=name, display_name=display_name, description=description,
                                      component_type=cls,
                                      languages=languages, delegations=ComponentMetadata.Delegation(),
-                                     level=level)
+                                     level=level, kind=kind)
             setattr(cls, '_meta', meta)
             return Component.use__meta(cls)
         return decorator

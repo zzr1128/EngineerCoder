@@ -26,13 +26,13 @@ class CField(Component):
             self.label_possessive = graphics.create_native_label(self.lt_possessive, self.font)
             graphics.label_metric_width(self.label_possessive, modify=True)
             # The owner and the member are plain names: auto-width edits grow with the entered
-            # text (never below the declared width); completions are disabled (not merely
-            # cleared, which the kit synchronization would refill) so names never embed components
+            # text (never below the declared width); completion is restricted to the suggestions
+            # completers derive from the project (variables) so names never embed components
             self.edit_owner = graphics.create_visual_code_edit(QRectF(0, 0, 120, 24))
-            self.edit_owner.setCompletionsEnabled(False)
+            self.edit_owner.setDerivedCompletionsEnabled(True)
             self.edit_owner.setAutoWidthEnabled(True)
             self.edit_member = graphics.create_visual_code_edit(QRectF(0, 0, 120, 24))
-            self.edit_member.setCompletionsEnabled(False)
+            self.edit_member.setDerivedCompletionsEnabled(True)
             self.edit_member.setAutoWidthEnabled(True)
             self.layout = CLLibrary.GLinearLayout()
             self.layout.add_element(self.edit_owner, null, null, null, graphics=graphics)

@@ -5,6 +5,7 @@ from pathlib import Path
 
 from alias import *
 from core.build import BuildConfig
+from core.completer import Completer
 from core.kit import Kit, KitManager
 from core.localization import language
 from core.meta import Version, SupportedLanguage
@@ -20,6 +21,12 @@ class Environment:
     VERSION = Version(0, 1, 0x0_000_0001)
     # noinspection bad-assignment
     _instance: 'Environment' = null
+    # Completer classes contributed by kits (see ``core.completer``); the editors
+    # instantiate them against the loaded project to derive completion suggestions.
+    # Class-level on purpose: kits register their completers at import time, which
+    # may precede the application's Environment() (a bare call re-runs __init__),
+    # and the re-initialization must not wipe the registrations
+    _completers: ClassVar[IList[typeof[Completer]]] = []
 
     def __new__(cls) -> 'Environment':
         if cls._instance is null:
@@ -50,6 +57,16 @@ class Environment:
         self.local_language = language
         self.theme = Theme.from_resource('light.json')
         self.rt: IDictionary[string, Any] = {}
+        # Shared registry (see ``_completers``): re-initialization rebinds it, never clears it
+        self.completers = Environment._completers
+
+    def register_completer(self, completer: typeof[Completer]) -> void:
+        """
+        Register a completer class so the editors consult it while completing.
+        :param completer: completer class to register (instantiated per project)
+        """
+        if completer not in self.completers:
+            self.completers.append(completer)
 
     def satisfy_kit_version(self, kit: Kit) -> bool:
         return kit.meta.satisfy_version(self.version)
