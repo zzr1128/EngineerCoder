@@ -64,6 +64,10 @@ class Kit:
         self.meta = meta
         self.components: IDictionary[string, ComponentMetadata] = {}
         self.delegation_buffer: IList[typeof[ComponentDelegation]] = []
+        # Display names of the palette groups the kit organizes its components
+        # into, in display order (see ``ComponentMetadata.group``); empty keeps
+        # the palette listing the components flat
+        self.palette_groups: tuple[string, ...] = ()
 
         for comp in components:
             self.components[comp.name] = comp
@@ -268,6 +272,10 @@ class KitManager:
         # take part in the code completion of visual code edits (see
         # ``VisualCodeEdit.add_completion``); the level filter still applies
         self.completions: IDictionary[string, string] = {}
+        # Keyword -> complete component name of the context-gated components:
+        # they complete inside matching contexts only (never through this
+        # registry), but the palette lists them as draggable entries nonetheless
+        self.context_completions: IDictionary[string, string] = {}
 
     def add_completion(self, keyword: string, component_name: string) -> void:
         """
@@ -279,6 +287,16 @@ class KitManager:
         may happen at any time relative to the edit construction.
         """
         self.completions[keyword] = component_name
+
+    def add_context_completion(self, keyword: string, component_name: string) -> void:
+        """
+        Record the insertion keyword of a context-gated component: the analyzer
+        decides where it completes (never this registry), but the component
+        palette reads the registry to list the component as a draggable entry.
+        :param keyword: keyword that inserts the component inside matching contexts
+        :param component_name: complete name of the component (in format 'kit.component')
+        """
+        self.context_completions.setdefault(component_name, keyword)
 
     def __iter__(self) -> IEnumerator[Kit]:
         return iter(self._kits.values())

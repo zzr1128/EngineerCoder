@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+import json
+
 from math import ceil
 
 from PySide6.QtCore import QEvent, QMimeData, QObject, Qt, QPoint, QPointF, QRect, QRectF, QSize, QSizeF, QTimer, Signal
@@ -398,6 +400,11 @@ class VisualCodeEdit(HyperTextEdit):
     # drop handler inserts it where the drop lands (see ``dropEvent``)
     ComponentMime: ClassVar[string] = 'application/x-engineercoder-component'
 
+    # The mime type a copied (or cut) component selection carries on the clipboard:
+    # the payload is the JSON of the edit archive (``__serialize__``) holding the
+    # selected component; the paste handler inserts it where the caret stands
+    SelectionMime: ClassVar[string] = 'application/x-engineercoder-selection'
+
     def __init__(self, parent: Nullable[QWidget], graphics: IComponentGraphics):
         """
         :param parent: parent widget
@@ -786,11 +793,7 @@ class VisualCodeEdit(HyperTextEdit):
 
         # Refit the placeholder whenever the component (or its descendants) changes size;
         # watch the fields to route their Backspace/Delete through the selection
-        for widget in self._interface_widgets(component):
-            self._widget_components[widget] = component
-            widget.installEventFilter(self)
-            if isinstance(widget, HyperTextEdit):
-                widget.layoutSpaceChanged.connect(lambda c=component: self._refit_component(c))
+        self._register_component_fields(component)
 
         # The layout is stale during contentsChange; force it and re-fit the edit height,
         # so the whole inline component becomes visible inside the edit
@@ -810,6 +813,19 @@ class VisualCodeEdit(HyperTextEdit):
 
         self.componentInserted.emit(entry.component_name)
         return component
+
+    @final
+    def _register_component_fields(self, component: Component) -> void:
+        """
+        Watch the fields of an inserted component: they map onto their owner and
+        run through this edit's event filter (two-step selection, caret-edge
+        navigation), and every content-driven size change refits the placeholder.
+        """
+        for widget in self._interface_widgets(component):
+            self._widget_components[widget] = component
+            widget.installEventFilter(self)
+            if isinstance(widget, HyperTextEdit):
+                widget.layoutSpaceChanged.connect(lambda c=component: self._refit_component(c))
 
     @final
     def _insert_inline_component(self, spacer: QWidget, component: Component, size: QSize) -> void:
@@ -1060,7 +1076,9 @@ class VisualCodeEdit(HyperTextEdit):
         """
         Mark an inserted component as selected: its inline placeholder shows the
         theme's ``selected`` highlight. A second Backspace/Delete confirms the
-        deletion of the component; clicking elsewhere clears the selection.
+        deletion of the component; Ctrl+C/X/V act on it through the clipboard
+        (see ``copy_selected_component`` and companions); clicking elsewhere
+        clears the selection.
         :param component: the component to select
         """
         if self._selected_component is component:
@@ -1087,6 +1105,18 @@ class VisualCodeEdit(HyperTextEdit):
         if spacer is not null:
             spacer.setStyleSheet('')
         self._selected_component = null
+
+    @final
+    def _component_at_point(self, point: QPoint) -> Nullable[Component]:
+        """
+        :param point: position in viewport coordinates
+        :return: the inserted component whose placeholder covers the point, or
+            null when the point misses every component
+        """
+        for component, spacer in self._component_spacers.items():
+            if component in self.inserted_components and spacer.geometry().contains(point):
+                return component
+        return null
 
     @final
     def _selection_style(self) -> string:
@@ -1155,6 +1185,162 @@ class VisualCodeEdit(HyperTextEdit):
         # here, right where the placeholder used to be
         self.setFocus()
         self.setTextCursor(cursor)
+
+    # ---------------------------------------------------------- Clipboard
+
+    @final
+    def _selection_archive(self, component: Component) -> IDictionary[string, Any]:
+        """
+        :param component: an inserted component of this edit
+        :return: the edit archive (the ``__serialize__`` shape) holding exactly
+            that component, suitable for the clipboard and the paste handler
+        """
+        return {'text': '\uFFFC',
+                'components': [{'name': Environment.instance().kit_manager.full_name(component),
+                                'data': serialize(component)}]}
+
+    def copy_selected_component(self) -> bool:
+        """
+        Copy the selected component onto the clipboard: the payload carries the
+        edit archive with the component (``SelectionMime``), so a visual code
+        edit can paste it back; plain text joins as a component marker.
+        :return: whether a selected component was copied
+        """
+        if self._selected_component is null:
+            return False
+        mime = QMimeData()
+        payload = json.dumps(self._selection_archive(self._selected_component), ensure_ascii=False)
+        mime.setData(VisualCodeEdit.SelectionMime, bytes(payload, 'utf-8'))
+        mime.setText(f'[{Environment.instance().kit_manager.full_name(self._selected_component)}]')
+        QApplication.clipboard().setMimeData(mime)
+        return True
+
+    def cut_selected_component(self) -> bool:
+        """
+        Cut the selected component: copy it onto the clipboard, then remove it.
+        The removal is a plain document edit, so undoing brings the component back.
+        :return: whether a selected component was cut
+        """
+        component = self._selected_component
+        if not self.copy_selected_component():
+            return False
+        self._remove_component(component)
+        return True
+
+    def paste_components(self) -> bool:
+        """
+        Paste the component archive the clipboard carries at the text cursor:
+        the completion filter criteria apply to pastes as well (a statement never
+        enters an expression field, a plain-name field embeds nothing); anything
+        else falls back to the regular text paste.
+        :return: whether a component archive was pasted
+        """
+        mime = QApplication.clipboard().mimeData()
+        if mime is null or not mime.hasFormat(VisualCodeEdit.SelectionMime):
+            return False
+        # noinspection broad-exception
+        try:
+            data = json.loads(string(bytes(mime.data(VisualCodeEdit.SelectionMime)), 'utf-8'))
+        except Exception:  # A foreign payload never breaks the edition
+            return False
+        return self._paste_archive(data)
+
+    @final
+    def _paste_archive(self, data: IDictionary[string, Any]) -> bool:
+        """
+        Insert the components an edit archive carries at the text cursor, in the
+        order the placeholders appear (mirroring ``load``, but additive: the
+        surrounding contents stay untouched). Every component must pass the same
+        admission as a drop; otherwise nothing is inserted.
+        :param data: the edit archive (``__serialize__`` shape) to insert
+        :return: whether the archive was inserted
+        """
+        # noinspection broad-exception
+        try:
+            require_member(data, 'text', 'components')
+            require_type(data['text'], string, 'text')
+            require_type(data['components'], list, 'components')
+        except SerializationError:
+            return False
+        text: string = data['text']
+        segments = text.split('\uFFFC')
+        if len(segments) - 1 != len(data['components']):
+            return False
+
+        kit_manager = Environment.instance().kit_manager
+        entries: IList[tuple[Any, IDictionary[string, Any]]] = []
+        for serialized_component in data['components']:
+            # noinspection broad-exception
+            try:
+                require_member(serialized_component, 'name', 'data')
+                meta = kit_manager.lookup(serialized_component['name'])
+            except Exception:  # An unknown component rejects the whole archive
+                return False
+            entry = VisualCodeEdit.CompletionEntry('', serialized_component['name'])
+            if not self._entry_participates(entry) or not self._component_takes_part(serialized_component['name']):
+                return False  # The same admission a drop passes
+            entries.append((meta, serialized_component['data']))
+
+        canvas = self._canvas_widget()
+        content_width = self._content_width()
+        content_left = self._content_left()
+        # noinspection unresolved-references
+        occupation = max(canvas.width() - content_left - content_width, 0.) if canvas is not null else 0.
+
+        cursor = self.textCursor()
+        if cursor.hasSelection():  # A paste replaces the selection, like plain text does
+            cursor.removeSelectedText()
+        pasted: IList[Component] = []
+        for segment, (meta, component_data) in zip(segments, entries):
+            if segment:
+                cursor.insertText(segment)
+            self.graphics.push_anchor(QPointF(content_left, 0.))
+            self.graphics.push_right_occupation(occupation)
+            try:
+                component = meta.component_type.restore(component_data, null, self.graphics)
+                size = self._interface_size(component)
+            finally:
+                self.graphics.pop_occupation()
+                self.graphics.pop_anchor()
+
+            spacer = QWidget()
+            spacer.setObjectName(f'vce.inline.{id(component)}')
+            spacer.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+            self._spacer_components[spacer.objectName()] = component
+            self._component_spacers[component] = spacer
+            self._component_occupations[component] = occupation
+            self._apply_auto_width_inset(component)
+            # _insert_inline_component reads the edit cursor to locate the placeholder
+            self.setTextCursor(cursor)
+            self._insert_inline_component(spacer, component, QSize(int(size.width()), int(size.height())))
+            spacer.show()
+            cursor = self.textCursor()
+
+            self.graphics.add_interface(component.interface, occupation)
+            self.inserted_components.append(component)
+            self._register_component_fields(component)
+            pasted.append(component)
+        if segments[-1]:
+            cursor.insertText(segments[-1])
+
+        # The layout is stale during the contents changes; force it and re-fit the
+        # edit height, then locate every pasted component at its placeholder
+        self.document().documentLayout().documentSize()
+        self.fitSize()
+        for component in pasted:
+            spacer = self._component_spacers[component]
+            obj = self.objects.get(spacer.objectName(), null)
+            if obj is not null:
+                sync_cursor = QTextCursor(self.document())
+                sync_cursor.setPosition(int(obj.position))
+                self._sync_component_origin(component, QPointF(self.cursorRect(sync_cursor).topLeft()))
+
+        self.setFocus()
+        self.setTextCursor(cursor)
+        self.viewport().update()
+        self._update_auto_width()  # No-op unless auto width is enabled
+        self.graphics.refresh()
+        return True
 
     # ---------------------------------------------------------- Editable navigation
 
@@ -1249,8 +1435,11 @@ class VisualCodeEdit(HyperTextEdit):
         - Left/Right at the caret edge of an editable widget (or on a caret-less one,
           e.g. a check box) moves the focus along ``Component.editableWidgets``;
           leaving the list escapes before/behind the component in this edit.
+        - Ctrl+C/X/V act on the ongoing component selection through the clipboard
+          (copy/cut it, or paste the archive the clipboard carries into the field).
 
-        Any click or other key press clears an ongoing selection.
+        Any click or ordinary key press clears an ongoing selection (the bare
+        modifier keys do not, so the Ctrl clipboard shortcuts stay applicable).
         """
         # noinspection bad-argument-type
         component = self._widget_components.get(watched, null)
@@ -1260,6 +1449,16 @@ class VisualCodeEdit(HyperTextEdit):
             elif event.type() == QEvent.Type.KeyPress:
                 # noinspection unresolved-references
                 key = event.key()
+                if event.modifiers() & Qt.KeyboardModifier.ControlModifier == Qt.KeyboardModifier.ControlModifier \
+                        and self._selected_component is not null:
+                    # The clipboard shortcuts act on the component selection while
+                    # it holds (the fields keep their own clipboard otherwise)
+                    if key == Qt.Key.Key_C:
+                        return self.copy_selected_component()
+                    if key == Qt.Key.Key_X:
+                        return self.cut_selected_component()
+                    if key == Qt.Key.Key_V:
+                        return self.paste_components()
                 if key in (Qt.Key.Key_Left, Qt.Key.Key_Right) \
                         and event.modifiers() == Qt.KeyboardModifier.NoModifier \
                         and self._at_editable_edge(watched, key == Qt.Key.Key_Right):
@@ -1274,7 +1473,19 @@ class VisualCodeEdit(HyperTextEdit):
                         if key == Qt.Key.Key_Backspace and cursor.position() == 0:
                             self.select_component(component)
                             return True
-                if self._selected_component is not null:
+                elif isinstance(watched, QLineEdit):
+                    # Single-line fields follow the same two-step selection
+                    if key in (Qt.Key.Key_Backspace, Qt.Key.Key_Delete) and not watched.hasSelectedText():
+                        if self._selected_component is component:
+                            self._remove_component(component)  # A second press confirms the deletion
+                            return True
+                        if key == Qt.Key.Key_Backspace and watched.cursorPosition() == 0:
+                            self.select_component(component)
+                            return True
+                if self._selected_component is not null \
+                        and key not in (Qt.Key.Key_Control, Qt.Key.Key_Shift, Qt.Key.Key_Alt, Qt.Key.Key_Meta):
+                    # The bare modifier keys change nothing by themselves: pressing
+                    # Ctrl alone must keep the selection for the Ctrl+C/X/V to follow
                     self.clear_selection()
         return super().eventFilter(watched, event)
 
@@ -1530,11 +1741,7 @@ class VisualCodeEdit(HyperTextEdit):
 
                 # Refit the placeholder whenever the component (or its descendants) changes size;
                 # watch the fields to route their Backspace/Delete through the selection
-                for widget in edit._interface_widgets(component):
-                    edit._widget_components[widget] = component
-                    widget.installEventFilter(edit)
-                    if isinstance(widget, HyperTextEdit):
-                        widget.layoutSpaceChanged.connect(lambda c=component: edit._refit_component(c))
+                edit._register_component_fields(component)
 
             if segments[-1]:
                 cursor.insertText(segments[-1])
@@ -1750,6 +1957,18 @@ class VisualCodeEdit(HyperTextEdit):
                 return
         else:
             key = event.key()
+            if event.modifiers() & Qt.KeyboardModifier.ControlModifier == Qt.KeyboardModifier.ControlModifier:
+                # The clipboard shortcuts act on the component selection while it
+                # holds (plain-text editing keeps the standard behavior otherwise)
+                if key == Qt.Key.Key_C:
+                    if self.copy_selected_component():
+                        return
+                elif key == Qt.Key.Key_X:
+                    if self.cut_selected_component():
+                        return
+                elif key == Qt.Key.Key_V:
+                    if self.paste_components():
+                        return
             if key in (Qt.Key.Key_Backspace, Qt.Key.Key_Delete):
                 # A second Backspace/Delete confirms the deletion of the selected
                 # component; otherwise a Backspace/Delete adjacent to the placeholder
@@ -1761,7 +1980,10 @@ class VisualCodeEdit(HyperTextEdit):
                 if component is not null and component.autoFocusWidget() is not null:
                     self.select_component(component)
                     return
-            elif self._selected_component is not null:
+            elif self._selected_component is not null \
+                    and key not in (Qt.Key.Key_Control, Qt.Key.Key_Shift, Qt.Key.Key_Alt, Qt.Key.Key_Meta):
+                # The bare modifier keys change nothing by themselves: pressing
+                # Ctrl alone must keep the selection for the Ctrl+C/X/V to follow
                 self.clear_selection()
 
             if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and self._completions_enabled:
@@ -1821,6 +2043,16 @@ class VisualCodeEdit(HyperTextEdit):
     def mousePressEvent(self, event: QMouseEvent, /) -> void:
         self._hide_popup()
         self.clear_selection()
+        if event.button() == Qt.MouseButton.LeftButton:
+            # A click onto a component selects it whole: the caret moves beside
+            # the placeholder, so the clipboard actions know where to paste
+            component = self._component_at_point(event.position().toPoint())
+            if component is not null:
+                self.select_component(component)
+                self._focus_beside_component(component, after=True)
+                self._snap_viewport_top()
+                event.accept()
+                return
         super().mousePressEvent(event)
         # Setting the caret scrolls the viewport to keep it visible; undo any
         # drift that introduced (the contents fit, nothing needs scrolling)

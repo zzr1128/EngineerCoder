@@ -139,6 +139,9 @@ class ComponentMetadata:
     level: int
     # Symbol kind driving the completion glyph (see ``Kind``); defaults to builtin
     kind: Kind = Kind.Builtin
+    # Palette group the component belongs to (localized display name of the
+    # group, e.g. "cell"); empty keeps the component ungrouped in the palette
+    group: string = ''
 
     @staticmethod
     def create(name: string, display_name: string, description: string, languages: IList[SupportedLanguage],

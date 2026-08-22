@@ -1,0 +1,10 @@
+{
+    "identifier_empty": "标识符不能为空",
+    "identifier_invalid": "\"{0}\"不是合法的C标识符：只能由字母、数字和下划线组成，且不能以数字开头",
+    "identifier_keyword": "\"{0}\"是{1}标准的关键字，不能用作标识符",
+    "identifier_reserved": "\"{0}\"位于C标准保留的标识符命名空间内（以下划线开头）",
+    "source_unterminated": "存在未闭合的{0}字符串",
+    "source_unterminated_comment": "存在未闭合的块注释",
+    "source_unbalanced": "括号\"{0}\"没有与之配对的左括号",
+    "source_unclosed": "括号\"{0}\"没有闭合"
+}

@@ -241,6 +241,11 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
                 font-weight: bold;
                 padding: 6px 2px 2px 2px;
             }}
+            QLabel#paletteGroupHeader {{
+                background: transparent;
+                color: {self.env.theme.colors.foreground.name()};
+                padding: 4px 2px 1px 12px;
+            }}
             _PaletteEntry {{
                 background-color: {self.env.theme.colors.tertiary.name()};
                 border-radius: 6px;

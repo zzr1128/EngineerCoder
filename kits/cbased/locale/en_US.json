@@ -1,0 +1,10 @@
+{
+    "identifier_empty": "The identifier must not be empty",
+    "identifier_invalid": "\"{0}\" is not a valid C identifier: only letters, digits and underscores are allowed, and it must not start with a digit",
+    "identifier_keyword": "\"{0}\" is a keyword of the {1} standard and cannot be used as an identifier",
+    "identifier_reserved": "\"{0}\" lies in the identifier namespace the C standard reserves (leading underscore)",
+    "source_unterminated": "An unterminated {0} string literal was found",
+    "source_unterminated_comment": "An unterminated block comment was found",
+    "source_unbalanced": "The delimiter \"{0}\" has no matching opening delimiter",
+    "source_unclosed": "The delimiter \"{0}\" is never closed"
+}
