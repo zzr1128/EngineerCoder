@@ -6,6 +6,7 @@ from PySide6.QtGui import *
 
 from alias import *
 from alias import Nullable
+from core.build import Builder
 from core.localization import _
 from core.script import Script
 from core.environment import Environment
@@ -14,11 +15,48 @@ from core.resource import Resource
 from kits.fluent.fluent import UDF
 from interface.ui_style_editor import Ui_EditorWindow
 from interface.edition_canvas import EditionCanvas
+from interface.component_palette import ComponentPalette
 
 
 @final
 class EditorWindow(QMainWindow, Ui_EditorWindow):
     _instance: Nullable['EditorWindow'] = null
+
+    @staticmethod
+    def build_error_rows(error: BaseException) -> IList[tuple[string, string, string]]:
+        """
+        Decompose a building exception into rows (level, code, message) of the
+        build message table: one row per problem the error carries (the B1006
+        static checking lists every problem), or a single row describing it.
+        """
+        if isinstance(error, Builder.BuildError) and len(error.texts) == 1 \
+                and isinstance(error.texts[0], string):
+            return [('error', error.code, line) for line in string(error.texts[0]).splitlines()]
+        return [('error', getattr(error, 'code', ''), str(error))]
+
+    @staticmethod
+    def fill_build_table(table: QTableWidget, rows: IEnumerable[tuple[string, string, string]]) -> void:
+        """Fill the build message table with (level, code, message) rows."""
+        table.setRowCount(0)
+        for level, code, message in rows:
+            row = table.rowCount()
+            table.insertRow(row)
+            if level == 'error':
+                label = _('ui.build.level.error')
+            elif level == 'warning':
+                label = _('ui.build.level.warning')
+            else:
+                label = _('ui.build.level.info')
+            for column, text in enumerate((label, code, message)):
+                item = QTableWidgetItem(text)
+                if column < 2:
+                    item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                if column == 0:
+                    if level == 'error':
+                        item.setForeground(QColor('#D9534F'))  # Error rows announce their level
+                    elif level == 'warning':
+                        item.setForeground(QColor('#E0A800'))  # Warnings stay gentler than errors
+                table.setItem(row, column, item)
 
     def __new__(cls, parent: Nullable[QWidget] = null) -> Self:
         if cls._instance is null:
@@ -60,12 +98,38 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
 
         self.compArea_layout = QVBoxLayout(self.scrollAreaCompContents)
 
+        # Build message panel (bottom dock): a table listing the compile
+        # messages like an IDE's error list, so every problem the build
+        # reports stays visible with its level and code
+        self.dock_build = QDockWidget(_('ui.build.title'), self)
+        self.dock_build.setObjectName('dockWidget_build')
+        self.table_build_messages = QTableWidget(0, 3, self.dock_build)
+        self.table_build_messages.setObjectName('tableBuildMessages')
+        self.table_build_messages.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table_build_messages.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table_build_messages.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.table_build_messages.verticalHeader().setVisible(False)
+        self.table_build_messages.setShowGrid(False)
+        self.table_build_messages.horizontalHeader().setStretchLastSection(True)
+        self.table_build_messages.setHorizontalHeaderLabels(
+            [_('ui.build.column.level'), _('ui.build.column.code'), _('ui.build.column.message')])
+        self.dock_build.setWidget(self.table_build_messages)
+        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.dock_build)
+        self.dock_build.hide()
+
         self.setup()
         self.setup_actions()
 
         # Test code
+        self.env.import_kit(r'kits/cbased')  # C checker; the fluent kit depends on it
         self.env.import_kit(r'kits/common')
         self.env.import_kit(r'kits/fluent')  # UDF delegations for the CLK components
+        # Component palette (left dock): one draggable entry per component the
+        # code completion can insert; the filter box above narrows the listing
+        self.component_palette = ComponentPalette(self.scrollAreaCompContents)
+        self.compArea_layout.addWidget(self.component_palette)
+        # noinspection bad-argument-type
+        self.lineEdit_component.textChanged.connect(self.component_palette.apply_filter)
         tab = self.create_canvas('TestTab')
         canvas = self.canvas(tab)
         # The tab widget is the scroll area wrapping the canvas (through its viewport)
@@ -169,6 +233,24 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
                 border-radius: 6px;
             }}
             
+            /* Component palette (left dock): draggable entries of the components
+               the code completion can insert */
+            QLabel#paletteHeader {{
+                background: transparent;
+                color: {self.env.theme.colors.foreground.name()};
+                font-weight: bold;
+                padding: 6px 2px 2px 2px;
+            }}
+            _PaletteEntry {{
+                background-color: {self.env.theme.colors.tertiary.name()};
+                border-radius: 6px;
+                padding: 4px 8px;
+                color: {self.env.theme.colors.foreground.name()};
+            }}
+            _PaletteEntry:hover {{
+                background-color: {tp.name()};
+            }}
+            
             /* Field controls */
             QMainWindow QLineEdit, QMainWindow QTextEdit, QMainWindow HyperTextEdit {{
                 background-color: {self.env.theme.colors.tertiary.name()};
@@ -213,6 +295,70 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
             QMainWindow QCheckBox {{
                 background: transparent;
                 color: {self.env.theme.colors.foreground.name()};
+            }}
+            QMainWindow QPlainTextEdit {{
+                background-color: {self.env.theme.colors.tertiary.name()};
+                border-radius: 6px;
+                color: {self.env.theme.colors.foreground.name()};
+            }}
+            /* Combo boxes (e.g. the type option of a set): the box and its
+               dropdown list both follow the theme colors */
+            QMainWindow QComboBox {{
+                background-color: {self.env.theme.colors.tertiary.name()};
+                color: {self.env.theme.colors.foreground.name()};
+                border: none;
+                border-radius: 6px;
+                padding: 2px 8px;
+            }}
+            QMainWindow QComboBox::drop-down {{
+                border: none;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {self.env.theme.colors.secondary.name()};
+                color: {self.env.theme.colors.foreground.name()};
+                selection-background-color: {self.env.theme.colors.selected.name()};
+                selection-color: {self.env.theme.colors.foreground.name()};
+                border-radius: 6px;
+                outline: none;
+            }}
+            /* Status bar */
+            QStatusBar {{
+                background-color: {self.env.theme.colors.secondary.name()};
+                color: {self.env.theme.colors.foreground.name()};
+            }}
+            QStatusBar QLabel {{
+                background: transparent;
+                color: {self.env.theme.colors.foreground.name()};
+            }}
+            /* Build message table (the bottom error-list dock) */
+            QMainWindow QTableWidget {{
+                background-color: {self.env.theme.colors.tertiary.name()};
+                color: {self.env.theme.colors.foreground.name()};
+                border-radius: 6px;
+            }}
+            QTableWidget::item:selected {{
+                background-color: {self.env.theme.colors.selected.name()};
+                color: {self.env.theme.colors.foreground.name()};
+            }}
+            QHeaderView::section {{
+                background-color: {self.env.theme.colors.secondary.name()};
+                color: {self.env.theme.colors.foreground.name()};
+                border: none;
+                padding: 4px 8px;
+            }}
+            /* Advisory lint marking: deliberately gentler than the invalid
+               marking below, so the deep check never shouts while typing */
+            QLineEdit[ecTidyWarning="true"], HyperTextEdit[ecTidyWarning="true"], VisualCodeEdit[ecTidyWarning="true"] {{
+                border: 1px solid #E0A800;
+                border-radius: 6px;
+                background-color: rgba(224, 168, 0, 12%);
+            }}
+            /* Immediate static checking: fields the registered checkers reject
+               carry the ecInvalid property and are drawn red */
+            QLineEdit[ecInvalid="true"], HyperTextEdit[ecInvalid="true"], VisualCodeEdit[ecInvalid="true"] {{
+                border: 1px solid #D9534F;
+                border-radius: 6px;
+                background-color: rgba(217, 83, 79, 14%);
             }}
             
             /* Menu bar */
@@ -294,17 +440,29 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
         self.toolBar.addAction(self.action_compile)
 
     def compile_project(self) -> void:
-        """Build the loaded project and report the outcome in the status bar."""
+        """Build the loaded project and report the outcome: the status bar
+        summarizes it, the bottom build panel lists the compile messages
+        (or the generated artifacts on success)."""
         if self.env.project is null:
             self.statusbar.showMessage(_('ui.build.no_project'), 5000)
             return
         try:
-            artifacts = self.env.build()
+            artifacts, warnings = self.env.build()
         except Exception as e:  # Building must never crash the UI
-            self.statusbar.showMessage(_('ui.build.fail').format(null, str(e)), 8000)
+            self.fill_build_table(self.table_build_messages, self.build_error_rows(e))
+            self.dock_build.show()
+            self.statusbar.showMessage(_('ui.build.fail').format(str(e)), 8000)
             return
+        # Warnings precede the artifact list: one row per problem line (the
+        # B1007 product check joins them into its message)
+        rows: IList[tuple[string, string, string]] = [
+            ('warning', warning.code, line)
+            for warning in warnings for line in warning.message.splitlines()]
+        rows.extend(('info', '', str(artifact)) for artifact in artifacts)
+        self.fill_build_table(self.table_build_messages, rows)
+        self.dock_build.show()
         self.statusbar.showMessage(
-            _('ui.build.success').format(null, '; '.join(str(artifact) for artifact in artifacts)), 8000)
+            _('ui.build.success').format('; '.join(str(artifact) for artifact in artifacts)), 8000)
 
     def setup(self) -> void:
         # Setup graphic properties

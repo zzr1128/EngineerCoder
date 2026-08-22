@@ -25,7 +25,7 @@ from alias import *
 from core.component import Component, ComponentMetadata
 from core.kit import KitManager
 from kits.fluent.fluent import UDF, fluent
-from kits.fluent.general import CFluentMacro
+from kits.fluent.general import CFluentMacro, MacroArgument
 from kits.fluent.localization import _
 
 
@@ -41,7 +41,8 @@ class CDomSource(CFluentMacro):
     the emission, in-scattering and the absorption/scattering coefficients
     through the ``real *`` parameters."""
     macro = 'DEFINE_DOM_SOURCE'
-    args_spec = ((_('label_cell'), 'c'), (_('label_thread'), 't'),
+    args_spec = (MacroArgument(_('label_cell'), 'c', role='cell'),
+                 MacroArgument(_('label_thread'), 't', role='thread'),
                  (_('label_direction_index'), 's'), (_('label_direction'), 'xi'),
                  (_('label_emission'), 'emission'), (_('label_in_scattering'), 'in_scattering'),
                  (_('label_absorption_coef'), 'abs_coeff'), (_('label_scattering_coef'), 'scat_coeff'))
@@ -60,7 +61,8 @@ class CEmissivityWeightingFactor(CFluentMacro):
     ``s`` the direction index, ``xi`` the direction vector; the body must set
     the factor through the ``real *`` parameter ``weight``."""
     macro = 'DEFINE_EMISSIVITY_WEIGHTING_FACTOR'
-    args_spec = ((_('label_cell'), 'c'), (_('label_thread'), 't'),
+    args_spec = (MacroArgument(_('label_cell'), 'c', role='cell'),
+                 MacroArgument(_('label_thread'), 't', role='thread'),
                  (_('label_direction_index'), 's'), (_('label_direction'), 'xi'),
                  (_('label_weight'), 'weight'))
     completion_keyword = 'emissivity_weighting_factor'

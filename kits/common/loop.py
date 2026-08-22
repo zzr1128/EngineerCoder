@@ -10,6 +10,7 @@ from core.graphics import IComponentGraphics
 from kits.common.library import CLLibrary
 from kits.common.clk import clk
 from kits.common.localization import _
+from kits.common.validation import attach_identifier_check
 
 
 def counter_name(occupied: ICollection[string]) -> string:
@@ -138,6 +139,7 @@ class CFor(Component):
             # The counter name is a plain identifier: a single-line edit never embeds
             # components; leaving it empty lets compilation name the counter itself
             self.edit_counter = graphics.create_lineedit(QRectF(0, 0, 120, 24))
+            self.edit_counter.setPlaceholderText(_('placeholder_counter'))
             # Visual code edits accept code snippets and components inserted via completion
             self.edit_count = graphics.create_visual_code_edit(QRectF(0, 0, CLLibrary.GLinearLayout.FillWidth - 10, 30))
             self.edit_body = graphics.create_visual_code_edit(QRectF(0, 0, CLLibrary.GLinearLayout.FillWidth - 10, 30))
@@ -174,6 +176,9 @@ class CFor(Component):
     def __init__(self, parent: Nullable['Component'], graphics: 'IComponentGraphics'):
         super().__init__(parent, graphics)
         self._interface = CFor.FForInterface(graphics)
+        # Immediate static checking: an invalid counter name marks the field red
+        # while it is being written (see ``kits.common.validation``)
+        attach_identifier_check(self._interface.edit_counter)
 
     def autoFocusWidget(self) -> Nullable[QWidget]:
         return self._interface.edit_count  # The repetition count is the first required field

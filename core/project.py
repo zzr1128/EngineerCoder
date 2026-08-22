@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from alias import *
-from core.build import BuildConfig, Compiler
+from core.build import BuildConfig, Builder, Compiler
 from core.graphics import IComponentGraphics
 from core.kit import Kit, KitManager
 from core.meta import SupportedLanguage
@@ -19,13 +19,18 @@ class Project:
         self.required_kits: IList[Kit] = []
         self.target_lang: SupportedLanguage = lang
         self.scripts: IList[Script] = []
+        # The C standard the project compiles against: it decides the language
+        # rules of the static checking (the keyword sets, see ``core.checker``);
+        # supported values: c89, c99, c11, c17, c23
+        self.c_standard: string = 'c99'
 
     def __serialize__(self) -> IDictionary[string, Any]:
         return {
             'name': self.name,
             'required_kits': [serialize(kit) for kit in self.required_kits],
             'target_lang': serialize(self.target_lang),
-            'scripts': [serialize(script) for script in self.scripts]
+            'scripts': [serialize(script) for script in self.scripts],
+            'c_standard': self.c_standard,
         }
 
     @classmethod
@@ -50,6 +55,10 @@ class Project:
         proj = Project(name, lang)
         proj.scripts = [Script.restore(script, kit_manager, graphics) for script in data['scripts']]
         proj.required_kits = [kit for kit in data['required_kits']]
+        # 'c_standard' is absent in archives made before the setting existed
+        c_standard = data.get('c_standard', 'c99')
+        if isinstance(c_standard, string) and c_standard.strip():
+            proj.c_standard = c_standard.strip()
         return proj
 
     def build_script(self, script: Script, config: BuildConfig) -> Compiler:
@@ -63,13 +72,14 @@ class Project:
         script.build(compiler)
         return compiler
 
-    def build_project(self, config: BuildConfig) -> IList[Path]:
+    def build_project(self, config: BuildConfig) -> tuple[IList[Path], IList[Builder.BuildWarning]]:
         """
         Compile every script of the project and write the compilation products to files.
         :param config: building configuration; its ``output`` directory receives the
             artifacts, defaulting to ``build`` next to the project file (or under the
             workspace ``build`` directory, named after the project, while unsaved)
-        :return: paths of the generated artifacts
+        :return: paths of the generated artifacts and the warnings the compilers
+            raised along the way (the artifacts are still written)
         """
         if config.output is not null:
             output = config.output
@@ -79,11 +89,13 @@ class Project:
             output = BASE_DIR / 'build' / self.name
         output.mkdir(parents=True, exist_ok=True)
         artifacts: IList[Path] = []
+        warnings: IList[Builder.BuildWarning] = []
         for script in self.scripts:
             compiler = self.build_script(script, config)
+            warnings.extend(compiler.warnings)
             fragments: IList[string] = compiler.products.get(config.target_lang.id, [])
             target = output / f'{script.name}.{config.target_lang.extension}'
             with Compiler.CompilationProductGuide(str(target)) as product:
                 product.write('\n\n'.join(fragments))
             artifacts.append(target)
-        return artifacts
+        return artifacts, warnings

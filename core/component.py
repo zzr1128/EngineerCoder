@@ -115,10 +115,19 @@ class ComponentMetadata:
         - ``Variable``: analyzer-derived variables; they carry the ``cpl_var``
           icon. Components are never of this kind themselves; it is used by
           completers (see ``core.completer``) for derived suggestions.
+        - ``Function``: callable API entries (traversal loops, vector/reduction
+          helpers, ``Lookup_Thread``...); they carry the ``cpl_func`` icon.
+        - ``Type``: data access entries (field reads, geometry info,
+          dimensionality parameters); they carry the ``cpl_type`` icon.
+        - ``Parameter``: solver state parameters (``CURRENT_TIME``,
+          ``THREAD_ID``...); they carry the ``cpl_param`` icon.
         """
         Builtin = 'builtin'
         Macro = 'macro'
         Variable = 'variable'
+        Function = 'function'
+        Type = 'type'
+        Parameter = 'parameter'
 
     name: string
     display_name: string

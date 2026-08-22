@@ -119,6 +119,7 @@ class HyperTextEdit(QTextEdit):
         self.displaying_objects: NonRotationalTreap[HyperTextEdit._InlineObject, int] \
             = NonRotationalTreap.create_integral(HyperTextEdit._InlineObject)  # type: ignore
         self.max_height = self.maximumHeight()
+        self._basic_frame_width = self.frameWidth()  # Frame the basic height was measured with
 
     def insertObject(self, widget: QWidget) -> void:
         """
@@ -195,7 +196,10 @@ class HyperTextEdit(QTextEdit):
 
         content_height = ceil(doc.documentLayout().documentSize().height())
         vm = self.viewportMargins()
-        return content_height + vm.top() + vm.bottom()  # + 2 * self.frameWidth()
+        # The frame (e.g. the 1px border a validation marking styles in) surrounds
+        # the viewport; counting it keeps the contents visible when the border
+        # appears or disappears
+        return content_height + vm.top() + vm.bottom() + 2 * self.frameWidth()
 
     def _on_content_change(self, pos: int, removed_count: int, added_count: int) -> void:
         if removed_count > 0:  # Remove text
@@ -247,6 +251,7 @@ class HyperTextEdit(QTextEdit):
         if height == self.basic_height:
             return
         self.basic_height = height
+        self._basic_frame_width = self.frameWidth()
         self.fitSize()
 
     def changeEvent(self, event: QEvent, /) -> void:
@@ -254,9 +259,25 @@ class HyperTextEdit(QTextEdit):
         if event.type() == QEvent.Type.FontChange:
             self.document().setDefaultFont(self.font())
             self.basic_height = self._heightToFit()
+            self._basic_frame_width = self.frameWidth()
+            self.fitSize()
+        elif event.type() == QEvent.Type.StyleChange:
+            # A stylesheet state change (e.g. a validation marking styling a
+            # border in or out) changes the frame around the viewport: shift
+            # the basic floor by the frame delta and refit, so the contents
+            # stay visible without drifting
+            frame_width = self.frameWidth()
+            if frame_width != self._basic_frame_width:
+                self.basic_height += 2 * (frame_width - self._basic_frame_width)
+                self._basic_frame_width = frame_width
             self.fitSize()
 
     def fitSize(self) -> void:
+        if self.viewport().width() <= 0:
+            # Degenerate geometry (e.g. the window is minimized): the document
+            # layout cannot be measured, and locking the size now would freeze
+            # the edit at a wrong height the restore cannot undo
+            return
         h = max(self.basic_height, min(self.max_height, self._heightToFit()))
         if self.height() != h:
             self.setFixedHeight(h)

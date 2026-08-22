@@ -20,19 +20,31 @@ msgstr "Unresolved building exception."
 
 #: core/build.py:47
 msgid "B1002"
-msgstr "Invalid building configuration: {1}"
+msgstr "Invalid building configuration: {0}"
 
 #: core/build.py:48
 msgid "B1003"
-msgstr "I/O exception during building: {1}"
+msgstr "I/O exception during building: {0}"
 
 #: core/build.py:49
 msgid "B1004"
-msgstr "Language \"{1}\" not supported by component \"{2}\"."
+msgstr "Language \"{0}\" not supported by component \"{1}\"."
 
 #: core/build.py:50
 msgid "B1005"
-msgstr "Multiple components \"{2}\" conflict for language \"{1}\"."
+msgstr "Multiple components \"{1}\" conflict for language \"{0}\"."
+
+#: core/build.py:51
+msgid "B1006"
+msgstr ""
+"Static checking rejected the contents:\n"
+"{0}"
+
+#: core/build.py
+msgid "B1007"
+msgstr ""
+"The generated code may not pass C compilation:\n"
+"{0}"
 
 #: core/build.py:75
 msgid "CPG.enter.open_fail"
@@ -108,8 +120,36 @@ msgstr "No project is loaded to build."
 
 #: interface/editor.py
 msgid "ui.build.success"
-msgstr "Build succeeded: {1}"
+msgstr "Build succeeded: {0}"
 
 #: interface/editor.py
 msgid "ui.build.fail"
-msgstr "Build failed: {1}"
+msgstr "Build failed: {0}"
+
+#: interface/editor.py
+msgid "ui.build.title"
+msgstr "Compile Messages"
+
+#: interface/editor.py
+msgid "ui.build.column.level"
+msgstr "Level"
+
+#: interface/editor.py
+msgid "ui.build.column.code"
+msgstr "Code"
+
+#: interface/editor.py
+msgid "ui.build.column.message"
+msgstr "Message"
+
+#: interface/editor.py
+msgid "ui.build.level.error"
+msgstr "Error"
+
+#: interface/editor.py
+msgid "ui.build.level.info"
+msgstr "Info"
+
+#: interface/editor.py
+msgid "ui.build.level.warning"
+msgstr "Warning"

@@ -814,6 +814,11 @@ class EditionCanvas(QWidget, IComponentGraphics):
         self.update()
 
     def resizeEvent(self, event: QResizeEvent, /) -> void:
+        if event.size().width() <= 0 or event.size().height() <= 0:
+            # Degenerate geometry (e.g. the window is minimized): replaying the
+            # declared rectangles would collapse every widget to a zero (or
+            # negative) size and freeze their fittings; leave them as they are
+            return
         for w, a in self.widgets.values():
             rect = a.rect.__copy__()
             auto_width = isinstance(w, VisualCodeEdit) and w.autoWidthEnabled()

@@ -6,8 +6,8 @@ from pathlib import Path
 from types import TracebackType
 
 from alias import *
+from core.localization import _
 from core.meta import SupportedLanguage
-from gettext import gettext as _
 
 
 @dataclass
@@ -33,6 +33,7 @@ class Builder:
     class BuildWarning(Warning):
         def __init__(self, code: 'Builder.BuildErrorCode', *texts):
             self.code: string = code.name
+            self.texts: tuple = texts  # The positional texts the message was formatted with
             self.message: string = code.message.format(*texts)
 
         def __str__(self):
@@ -41,16 +42,21 @@ class Builder:
     class BuildError(Exception):
         def __init__(self, code: 'Builder.BuildErrorCode', *texts):
             self.code: string = code.name
+            self.texts: tuple = texts  # The positional texts the message was formatted with
             self.message: string = code.message.format(*texts)
 
         def __str__(self):
             return f'{self.code}: {self.message}'
 
+    # Placeholder indices are 0-based (``str.format``); every code message may
+    # reference the positional texts the raise site supplies
     B1001 = BuildErrorCode('B1001', _('B1001'))  # Unresolved building exception.
-    B1002 = BuildErrorCode('B1002', _('B1002'))  # Invalid building configuration: {1}
-    B1003 = BuildErrorCode('B1003', _('B1003'))  # I/O exception during building: {1}
-    B1004 = BuildErrorCode('B1004', _('B1004'))  # Language "{1}" not supported by component "{2}"
-    B1005 = BuildErrorCode('B1005', _('B1005'))  # Multiple components "{2}" conflict for language "{1}"
+    B1002 = BuildErrorCode('B1002', _('B1002'))  # Invalid building configuration: {0}
+    B1003 = BuildErrorCode('B1003', _('B1003'))  # I/O exception during building: {0}
+    B1004 = BuildErrorCode('B1004', _('B1004'))  # Language "{0}" not supported by component "{1}"
+    B1005 = BuildErrorCode('B1005', _('B1005'))  # Multiple components "{1}" conflict for language "{0}"
+    B1006 = BuildErrorCode('B1006', _('B1006'))  # Static checking rejected the contents:\n{0}
+    B1007 = BuildErrorCode('B1007', _('B1007'))  # The generated code may not pass C compilation:\n{0}
 
     def __init__(self, config: BuildConfig):
         self.config = config

@@ -9,6 +9,7 @@ from core.graphics import IComponentGraphics
 from kits.common.library import CLLibrary
 from kits.common.clk import clk
 from kits.common.localization import _
+from kits.common.validation import attach_source_check, attach_source_lint
 
 
 @clk.register
@@ -24,6 +25,7 @@ class CNative(Component):
             # it offers no completion, so components can never be embedded inside
             self.edit_code = graphics.create_hypertext_edit(
                 QRectF(0, 0, CLLibrary.GLinearLayout.FillWidth - 10, 60))
+            self.edit_code.setPlaceholderText(_('placeholder_code'))
             self.layout = CLLibrary.GLinearLayout()
             self.layout.add_element(self.edit_code, CLLibrary.GLinearLayout.ElementRowPolicy.Exclusive,
                                     CLLibrary.GLinearLayout.FillWidth, null, graphics=graphics)
@@ -45,6 +47,12 @@ class CNative(Component):
     def __init__(self, parent: Nullable['Component'], graphics: 'IComponentGraphics'):
         super().__init__(parent, graphics)
         self._interface = CNative.FNativeInterface(graphics)
+        # Immediate static checking of the hand-written code: the registered
+        # checkers validate the text while it is being written and mark the
+        # edit red when it cannot compile (see ``kits.common.validation``);
+        # the asynchronous lint then reports deeper problems gently
+        attach_source_check(self._interface.edit_code)
+        attach_source_lint(self._interface.edit_code)
 
     def autoFocusWidget(self) -> Nullable[QWidget]:
         return self._interface.edit_code  # The code body is the only required field

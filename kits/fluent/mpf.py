@@ -36,11 +36,13 @@ class CMassTransfer(CFluentMacro):
     """``DEFINE_MASS_TRANSFER(name, from, from_t, to, to_t)``: UDF defining
     the mass transfer rate between two phases of a multiphase flow; ``from``
     and ``to`` name the source and the target ``Phase*``, ``from_t`` and
-    ``to_t`` their threads. The body must return the rate as a ``real``."""
+    ``to_t`` their threads. The result field supplies the rate as a ``real``
+    the macro returns."""
     macro = 'DEFINE_MASS_TRANSFER'
     args_spec = ((_('label_from_phase'), 'from'), (_('label_thread'), 'from_t'),
                  (_('label_to_phase'), 'to'), (_('label_thread'), 'to_t'))
     completion_keyword = 'mass_transfer'
+    return_type = 'real'
 
 
 @fluent.register
@@ -51,12 +53,13 @@ class CExchangeProperty(CFluentMacro):
     """``DEFINE_EXCHANGE_PROPERTY(name, from, from_t, to, to_t)``: UDF
     defining the exchange property (interphase exchange coefficient) between
     two phases of a multiphase flow; ``from`` and ``to`` name the two
-    ``Phase *`` parameters, ``from_t`` and ``to_t`` their threads. The body
-    must return a ``real``."""
+    ``Phase *`` parameters, ``from_t`` and ``to_t`` their threads. The result
+    field supplies the ``real`` the macro returns."""
     macro = 'DEFINE_EXCHANGE_PROPERTY'
     args_spec = ((_('label_from_phase'), 'from'), (_('label_thread'), 'from_t'),
                  (_('label_to_phase'), 'to'), (_('label_thread'), 'to_t'))
     completion_keyword = 'exchange_property'
+    return_type = 'real'
 
 
 @fluent.register

@@ -2,11 +2,13 @@
 
 from math import ceil
 
-from PySide6.QtCore import QEvent, QObject, Qt, QPoint, QPointF, QRect, QRectF, QSize, QSizeF, QTimer, Signal
-from PySide6.QtGui import (QColor, QFocusEvent, QFontMetricsF, QIcon, QKeyEvent, QMouseEvent, QMoveEvent,
-                           QPainter, QPixmap, QResizeEvent, QTextCharFormat, QTextCursor, QTextDocument, QTextFormat)
-from PySide6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
-                               QWidget)
+from PySide6.QtCore import QEvent, QMimeData, QObject, Qt, QPoint, QPointF, QRect, QRectF, QSize, QSizeF, QTimer, Signal
+from PySide6.QtGui import (QColor, QDragEnterEvent, QDragMoveEvent, QDropEvent, QFocusEvent, QFont, QFontMetricsF,
+                           QIcon, QKeyEvent, QMouseEvent, QMoveEvent,
+                           QPainter, QPalette, QPixmap, QResizeEvent, QTextCharFormat, QTextCursor, QTextDocument,
+                           QTextFormat)
+from PySide6.QtWidgets import (QApplication, QFrame, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
+                               QStyle, QStyledItemDelegate, QStyleOptionViewItem, QWidget)
 
 from alias import *
 from alias import Nullable
@@ -22,6 +24,9 @@ from core.resource import Resource
 _KIND_ICON_FILES: Final[IDictionary[ComponentMetadata.Kind, string]] = {
     ComponentMetadata.Kind.Macro: 'cpl_macro.svg',
     ComponentMetadata.Kind.Variable: 'cpl_var.svg',
+    ComponentMetadata.Kind.Function: 'cpl_func.svg',
+    ComponentMetadata.Kind.Type: 'cpl_type.svg',
+    ComponentMetadata.Kind.Parameter: 'cpl_param.svg',
 }
 # (theme name, kind) -> loaded icon, so each glyph file is read once per theme
 _kind_icon_cache: IDictionary[tuple[string, ComponentMetadata.Kind], QIcon] = {}
@@ -86,6 +91,87 @@ def _blank_icon(size: QSize = _KIND_ICON_SIZE) -> QIcon:
     return icon
 
 
+def _fuzzy_match(keyword: string, pattern: string) -> Nullable[IList[tuple[int, int]]]:
+    """
+    Match the pattern against the keyword as an in-order character subsequence
+    (case-insensitively), so a completion confirms without typing its head.
+    :param keyword: completion keyword to match against
+    :param pattern: the word the user typed
+    :return: the matched character ranges of the keyword as (start, end)
+        exclusive-end spans (adjacent matches merged), or null when the
+        pattern does not match
+    """
+    if not pattern:
+        return []
+    lowered = keyword.lower()
+    pattern = pattern.lower()
+    spans: IList[tuple[int, int]] = []
+    position = 0
+    for character in pattern:
+        index = lowered.find(character, position)
+        if index < 0:
+            return null
+        if spans and spans[-1][1] == index:
+            spans[-1] = (spans[-1][0], index + 1)  # Merge adjacent matches
+        else:
+            spans.append((index, index + 1))
+        position = index + 1
+    return spans
+
+
+class _CompletionItemDelegate(QStyledItemDelegate):
+    """
+    Row renderer of the completion list: draws the keyword segment with the
+    characters the fuzzy pattern matched emphasized in bold (the component
+    name suffix keeps its regular emphasis).
+    """
+
+    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: Any) -> void:
+        text = string(index.data(Qt.ItemDataRole.DisplayRole) or '')
+        spans: IList[tuple[int, int]] = index.data(Qt.ItemDataRole.UserRole) or []
+        keyword_length = int(index.data(Qt.ItemDataRole.UserRole + 1) or 0)
+        # The style draws the background and the icon; it skips the text, which
+        # this delegate renders segment by segment (matched characters in bold)
+        option = QStyleOptionViewItem(option)
+        self.initStyleOption(option, index)
+        option.text = ''
+        widget = option.widget
+        style = widget.style() if widget is not null else QApplication.style()
+        style.drawControl(QStyle.ControlElement.CE_ItemViewItem, option, painter, widget)
+        if not text:
+            return
+        text_rect = style.subElementRect(QStyle.SubElement.SE_ItemViewItemText, option, widget)
+        if text_rect.isEmpty():
+            return
+        font = option.font
+        bold_font = QFont(font)
+        bold_font.setBold(True)
+        metrics = QFontMetricsF(font)
+        bold_metrics = QFontMetricsF(bold_font)
+        selected = bool(option.state & QStyle.StateFlag.State_Selected)
+        enabled = bool(option.state & QStyle.StateFlag.State_Enabled)
+        color = option.palette.color(QPalette.ColorGroup.Normal if enabled else QPalette.ColorGroup.Disabled,
+                                     QPalette.ColorRole.HighlightedText if selected else QPalette.ColorRole.Text)
+        painter.save()
+        try:
+            painter.setPen(color)
+            x = text_rect.left()
+            span_index = 0
+            for position, character in enumerate(text):
+                bold = span_index < len(spans) and spans[span_index][0] <= position < spans[span_index][1] \
+                       and position < keyword_length
+                if bold and spans[span_index][1] <= position + 1:
+                    span_index += 1
+                current = bold_metrics if bold else metrics
+                # Baseline of a vertically centered line of the segment's font
+                baseline = text_rect.center().y() + (current.ascent() - current.descent()) / 2.
+                painter.setFont(bold_font if bold else font)
+                painter.drawText(QPointF(x, baseline), character)
+                x += current.horizontalAdvance(character)
+        finally:
+            painter.restore()
+
+
 class _CompletionPopup(QFrame):
     """
     Top-level list popup of code completions.
@@ -114,6 +200,8 @@ class _CompletionPopup(QFrame):
         self.list.setFixedWidth(_CompletionPopup.ListWidth)
         # Uniform glyph column: rows without an icon reserve the same space
         self.list.setIconSize(_KIND_ICON_SIZE)
+        # Rows bold the characters the typed pattern matched (see the delegate)
+        self.list.setItemDelegate(_CompletionItemDelegate(self.list))
         layout.addWidget(self.list)
 
         # Detail pane showing the description of the highlighted entry
@@ -126,10 +214,13 @@ class _CompletionPopup(QFrame):
 
         self.list.currentRowChanged.connect(self._refresh_detail)
 
-    def set_entries(self, entries: IEnumerable['VisualCodeEdit.CompletionEntry']) -> void:
+    def set_entries(self, entries: IEnumerable['VisualCodeEdit.CompletionEntry'],
+                    pattern: string = '') -> void:
         """
         Refresh the popup contents with the specified completion entries.
         :param entries: completion entries to show
+        :param pattern: the word the user typed; its matched characters of
+            each keyword surface in bold (fuzzy match spans)
         """
         self.entries = list(entries)
         self.list.clear()
@@ -142,6 +233,11 @@ class _CompletionPopup(QFrame):
             # glyph (builtin) still reserve the glyph column, aligning the texts
             icon = _kind_icon(_resolve_entry_kind(entry))
             item.setIcon(icon if icon is not null else _blank_icon())
+            # The delegate bolds the matched keyword characters; the spans never
+            # reach the component-name suffix the row appends
+            spans = _fuzzy_match(entry.keyword, pattern)
+            item.setData(Qt.ItemDataRole.UserRole, spans if spans is not null else [])
+            item.setData(Qt.ItemDataRole.UserRole + 1, len(entry.keyword))
             self.list.addItem(item)
         if self.entries:
             self.list.setCurrentRow(0)
@@ -238,7 +334,9 @@ class VisualCodeEdit(HyperTextEdit):
     Code editor based on ``HyperTextEdit`` that provides IDE-style code completion.
 
     While the user types, a completion popup lists the keywords matching the word
-    being typed (e.g. ``if``). Confirming a completion (Enter/Return/Tab or clicking
+    being typed (e.g. ``if``): the match is fuzzy, the typed characters hit a
+    keyword whenever they appear in order (the head need not be typed), and the
+    matched characters surface in bold. Confirming a completion (Enter/Return/Tab or clicking
     an item) removes the typed prefix and inserts the corresponding component
     **inline into the text flow**: an invisible placeholder reserves the component's
     space in the document while the component itself is painted on the graphics
@@ -283,11 +381,22 @@ class VisualCodeEdit(HyperTextEdit):
         CompletionEntry('multiply', 'clk.multiply'),
         CompletionEntry('divide', 'clk.divide'),
         CompletionEntry('modulus', 'clk.modulus'),
+        CompletionEntry('greater', 'clk.greater'),
+        CompletionEntry('less', 'clk.less'),
+        CompletionEntry('greater_equal', 'clk.greater_equal'),
+        CompletionEntry('less_equal', 'clk.less_equal'),
+        CompletionEntry('equal', 'clk.equal'),
+        CompletionEntry('not_equal', 'clk.not_equal'),
         CompletionEntry('member', 'clk.field'),
     ]
 
     # Emitted with the component name after a component is inserted from a completion.
     componentInserted: ClassVar[Signal] = Signal(string)
+
+    # The mime type a palette entry drags (see ``interface.component_palette``):
+    # the payload is the complete name of the component ('kit.component'); the
+    # drop handler inserts it where the drop lands (see ``dropEvent``)
+    ComponentMime: ClassVar[string] = 'application/x-engineercoder-component'
 
     def __init__(self, parent: Nullable[QWidget], graphics: IComponentGraphics):
         """
@@ -410,20 +519,23 @@ class VisualCodeEdit(HyperTextEdit):
         self._derived_allowed = set(allowed_components) if enabled else set()
         if enabled == self._derived_only:
             if enabled:
-                # The allowed set changed: re-filter the existing component entries
+                # The allowed set changed: re-filter the existing entries (kit
+                # components outside the allowed set and the static text
+                # snippets play no part while the restriction holds)
                 self.completions[:] = [
                     entry for entry in self.completions
-                    if not entry.component_name or entry.component_name in self._derived_allowed
+                    if entry.component_name and entry.component_name in self._derived_allowed
                 ]
             return
         self._derived_only = enabled
         if enabled:
             self._hide_popup()
             # Component entries play no part any more: drop them persistently,
-            # except the explicitly allowed ones
+            # except the explicitly allowed ones (the componentless snippet
+            # entries play no part either and are dropped with them)
             self.completions[:] = [
                 entry for entry in self.completions
-                if not entry.component_name or entry.component_name in self._derived_allowed
+                if entry.component_name and entry.component_name in self._derived_allowed
             ]
         else:
             # Restore the component entries (defaults, then the kit keywords)
@@ -471,12 +583,13 @@ class VisualCodeEdit(HyperTextEdit):
         Absorb the completion keywords kits have contributed to the kit manager
         registry (``KitManager.completions``) but this edit does not know yet.
         The level filter still applies to the absorbed entries (see ``filter``).
-        While completion is restricted to derived suggestions, only the components
-        explicitly allowed there (see ``setDerivedCompletionsEnabled``) are absorbed.
+        While completion is restricted to derived suggestions, neither the
+        components nor the static text snippets the kits contribute are
+        absorbed (only the suggestions explicitly allowed there are).
         """
         if not self._completions_enabled:
             return
-        if self._derived_only and not self._derived_allowed:  # No component entries then
+        if self._derived_only and not self._derived_allowed:  # No kit entries then
             return
         kit_manager = Environment.instance().kit_manager
         for keyword, component_name in kit_manager.completions.items():
@@ -485,6 +598,19 @@ class VisualCodeEdit(HyperTextEdit):
             if any(entry.component_name == component_name for entry in self.completions):
                 continue
             self.add_completion(keyword, component_name)
+        # Static text snippets the kits contributed (e.g. function-like macro
+        # calls): they carry no component, so the level filter does not
+        # constrain them; derived-only edits stay restricted to derived
+        # suggestions and never absorb them
+        if self._derived_only:
+            return
+        environment = Environment.instance()
+        for snippet in environment.snippets.values():
+            if any(entry.keyword == snippet.keyword and entry.snippet for entry in self.completions):
+                continue
+            self.completions.append(VisualCodeEdit.CompletionEntry(
+                snippet.keyword, '', snippet.description, snippet.kind,
+                snippet.visibility, snippet.snippet))
 
     @final
     def _component_takes_part(self, component_name: string) -> bool:
@@ -513,8 +639,21 @@ class VisualCodeEdit(HyperTextEdit):
         env = Environment.instance()
         if env.project is null:
             return
-        # Derived entries carry no component: drop the stale ones, then re-absorb
-        self.completions[:] = [entry for entry in self.completions if entry.component_name]
+        # Derived entries carry no component: drop the stale ones, then re-absorb.
+        # Snippet entries carry no component either but stay (the kit
+        # synchronization above keeps them in sync with the registry). The
+        # completers also derive context-bound component entries (e.g. the
+        # cell accessors): they stay only while the completers re-suggest
+        # them, so entries whose context vanished are dropped with the stale
+        # derived entries; static component entries (defaults and the kit
+        # registry) always stay
+        static_components = {entry.component_name for entry in VisualCodeEdit.DefaultCompletions}
+        static_components.update(Environment.instance().kit_manager.completions.values())
+        self.completions[:] = [entry for entry in self.completions
+                               if entry.snippet
+                               or (entry.component_name
+                                   and (entry.component_name in static_components
+                                        or entry.component_name in self._derived_allowed))]
         for completer_type in env.completers:
             # noinspection broad-exception
             try:
@@ -522,6 +661,11 @@ class VisualCodeEdit(HyperTextEdit):
             except Exception:  # A completer must never break the edition
                 continue
             for completion in derived:
+                # Component entries stay subject to the derived restriction
+                # (a plain-name field never absorbs a component suggestion)
+                if completion.component_name \
+                        and not self._component_takes_part(completion.component_name):
+                    continue
                 if any(entry.keyword == completion.keyword
                        and entry.component_name == completion.component_name
                        for entry in self.completions):
@@ -1461,18 +1605,30 @@ class VisualCodeEdit(HyperTextEdit):
             return
 
         lowered = prefix.lower()
-        matches = [entry for entry in self.completions
-                   if entry.keyword.lower().startswith(lowered) and self._entry_participates(entry)
-                   and (not entry.component_name or self._component_takes_part(entry.component_name))]
+        # Fuzzy matching: the typed word hits a keyword whenever its characters
+        # appear in order (a prefix or a middle-tail hit alike)
+        matches: IList[tuple[int, IList[tuple[int, int]], CompletionEntry]] = []
+        for entry in self.completions:
+            if not self._entry_participates(entry):
+                continue
+            if entry.component_name and not self._component_takes_part(entry.component_name):
+                continue
+            spans = _fuzzy_match(entry.keyword, lowered)
+            if spans is null:
+                continue
+            keyword = entry.keyword.lower()
+            rank = 0 if keyword == lowered else (1 if keyword.startswith(lowered) else 2)
+            matches.append((rank, spans, entry))
         if not matches:
             self._hide_popup()
             return
-        # Exact matches first, then shortest keywords
-        matches.sort(key=lambda entry: (entry.keyword.lower() != lowered, len(entry.keyword)))
-        self._show_popup(matches)
+        # Exact matches first, then prefixes, then fuzzy hits; inside a rank the
+        # earliest, tightest, shortest match leads
+        matches.sort(key=lambda item: (item[0], item[1][0][0], len(item[1]), len(item[2].keyword)))
+        self._show_popup([entry for _, _, entry in matches], prefix)
 
     @final
-    def _show_popup(self, entries: IEnumerable[CompletionEntry]) -> void:
+    def _show_popup(self, entries: IEnumerable[CompletionEntry], pattern: string = '') -> void:
         if self._popup is null:
             self._popup = _CompletionPopup()
             # noinspection unresolved-references
@@ -1481,7 +1637,7 @@ class VisualCodeEdit(HyperTextEdit):
             self._style_popup(self._popup)
 
         # noinspection unresolved-references
-        self._popup.set_entries(entries)
+        self._popup.set_entries(entries, pattern)
 
         rect = self.cursorRect()  # In viewport coordinates
         position = self.viewport().mapToGlobal(QPoint(rect.left(), rect.bottom() + 2))
@@ -1528,7 +1684,9 @@ class VisualCodeEdit(HyperTextEdit):
         if entry.component_name and self._component_takes_part(entry.component_name):
             self.insert_component(entry)
         else:
-            self.insertPlainText(entry.keyword)  # Derived suggestion: complete the name as text
+            # Derived suggestion: complete the name as text; a snippet inserts
+            # the source text it carries (e.g. a macro call with its arguments)
+            self.insertPlainText(entry.snippet or entry.keyword)
 
     @final
     def _style_popup(self, popup: _CompletionPopup) -> void:
@@ -1641,6 +1799,20 @@ class VisualCodeEdit(HyperTextEdit):
         super().keyPressEvent(event)
         self._update_completion()
 
+    @final
+    def _snap_viewport_top(self) -> void:
+        # The edit grows to fit its contents and never scrolls (the whole canvas
+        # scrolls instead); a leftover vertical offset (e.g. geometry settling
+        # after a window restore) would shift the contents upwards the moment
+        # the cursor is made visible - snap the viewport back to the top
+        bar = self.verticalScrollBar()
+        if bar.value() != 0:
+            bar.setValue(0)
+
+    def focusInEvent(self, event: QFocusEvent, /) -> void:
+        super().focusInEvent(event)
+        self._snap_viewport_top()
+
     def focusOutEvent(self, event: QFocusEvent, /) -> void:
         self._hide_popup()
         self.clear_selection()
@@ -1650,11 +1822,70 @@ class VisualCodeEdit(HyperTextEdit):
         self._hide_popup()
         self.clear_selection()
         super().mousePressEvent(event)
+        # Setting the caret scrolls the viewport to keep it visible; undo any
+        # drift that introduced (the contents fit, nothing needs scrolling)
+        self._snap_viewport_top()
+
+    # ---------------------------------------------------------- Component drops
+
+    @final
+    def _dropped_component_name(self, mime: Nullable[QMimeData]) -> Nullable[string]:
+        """
+        Resolve the component a palette drag carries, when this edit accepts it:
+        the completion filter criteria apply to drops as well (a statement never
+        drops into an expression field, a plain-name field embeds nothing).
+        :return: the complete name of the dragged component, or null when the
+            drag carries none (or this edit rejects it)
+        """
+        if mime is null or not mime.hasFormat(VisualCodeEdit.ComponentMime):
+            return null
+        name = string(bytes(mime.data(VisualCodeEdit.ComponentMime)), 'utf-8')
+        try:
+            Environment.instance().kit_manager.lookup(name)
+        except LookupError:
+            return null  # The drag carries a component no imported kit knows
+        entry = VisualCodeEdit.CompletionEntry('', name)
+        if not self._entry_participates(entry):
+            return null
+        if not self._component_takes_part(name):
+            return null
+        return name
+
+    def dragEnterEvent(self, event: QDragEnterEvent, /) -> void:
+        if self._dropped_component_name(event.mimeData()) is not null:
+            event.acceptProposedAction()
+            return
+        super().dragEnterEvent(event)
+
+    def dragMoveEvent(self, event: QDragMoveEvent, /) -> void:
+        if self._dropped_component_name(event.mimeData()) is not null:
+            event.acceptProposedAction()
+            return
+        super().dragMoveEvent(event)
+
+    def dropEvent(self, event: QDropEvent, /) -> void:
+        name = self._dropped_component_name(event.mimeData())
+        if name is not null:
+            # Insert where the drop lands: the caret moves to the position and
+            # the component enters the text flow like a confirmed completion
+            cursor = self.cursorForPosition(event.position().toPoint())
+            self.setTextCursor(cursor)
+            if self.insert_component(VisualCodeEdit.CompletionEntry('', name)) is not null:
+                event.acceptProposedAction()
+            else:
+                event.ignore()
+            return
+        super().dropEvent(event)
 
     def resizeEvent(self, event: QResizeEvent, /) -> void:
         self._hide_popup()
         super().resizeEvent(event)
         if event.oldSize().width() != event.size().width():
+            if event.size().width() <= 0:
+                # Degenerate geometry (e.g. the window is minimized): fitting
+                # now would lock the width and the component sizes at zero,
+                # which the restore cannot undo; keep the current fitting
+                return
             # Keep the document layout width in sync with the new viewport width
             self.fitSize()
             # The applied width may have come from the canvas replaying the declared

@@ -11,6 +11,7 @@ from core.graphics import IComponentGraphics
 from kits.common.library import CLLibrary
 from kits.common.clk import clk
 from kits.common.localization import _
+from kits.common.validation import attach_identifier_check, attach_source_lint
 
 
 class _NameCommitWatcher(QObject):
@@ -68,11 +69,15 @@ class CAssign(Component):
             # embedding nothing but member components
             self.edit_name = graphics.create_visual_code_edit(QRectF(0, 0, 120, 24))
             self.edit_name.setDerivedCompletionsEnabled(True, ('clk.field',))
+            # A placeholder example keeps the field approachable for users without
+            # a programming background
+            self.edit_name.setPlaceholderText(_('placeholder_name'))
             # Visual code edits accept code snippets and components inserted via completion
             self.edit_value = graphics.create_visual_code_edit(
                 QRectF(0, 0, CLLibrary.GLinearLayout.FillWidth - 10, 30))
             # The assigned value is an expression context
             self.edit_value.filter(ComponentMetadata.Level.Expression)
+            self.edit_value.setPlaceholderText(_('placeholder_value'))
             self.check_constant = graphics.create_checkbox(self.lt_constant, self.font)
             self.check_local = graphics.create_checkbox(self.lt_local, self.font)
             # The type is chosen from the options the kit offers (see
@@ -122,6 +127,12 @@ class CAssign(Component):
         self._interface.edit_type.currentIndexChanged.connect(self._on_type_changed)
         self._name_watcher = _NameCommitWatcher(self._commit_name)
         self._interface.edit_name.installEventFilter(self._name_watcher)
+        # Immediate static checking: an invalid assignment target marks the field
+        # red while it is being written (see ``kits.common.validation``)
+        attach_identifier_check(self._interface.edit_name)
+        # The assigned value is hand-written code: the asynchronous lint checks
+        # it gently (wrapped into a minimal translation unit)
+        attach_source_lint(self._interface.edit_value, fragment=True)
 
     def autoFocusWidget(self) -> Nullable[QWidget]:
         return self._interface.edit_name  # The assignment target is the first required field

@@ -40,12 +40,16 @@ class Completion:
         compilation), ``scoped`` keeps it inside the subtree of the component
         introducing it (e.g. a function parameter); unused by suggestions that
         carry a component
+    :param snippet: the source text a componentless suggestion inserts upon
+        confirmation (e.g. a function-like macro call ``C_T(c, t)``); empty
+        completes the keyword itself as plain text
     """
     keyword: string
     component_name: string = ''
     description: string = ''
     kind: Nullable[ComponentMetadata.Kind] = null
     visibility: string = 'local'
+    snippet: string = ''
 
 
 class Completer(abstract):

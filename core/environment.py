@@ -4,8 +4,9 @@ import enum
 from pathlib import Path
 
 from alias import *
-from core.build import BuildConfig
-from core.completer import Completer
+from core.build import BuildConfig, Builder
+from core.checker import Checker
+from core.completer import Completer, Completion
 from core.kit import Kit, KitManager
 from core.localization import language
 from core.meta import Version, SupportedLanguage
@@ -27,6 +28,14 @@ class Environment:
     # may precede the application's Environment() (a bare call re-runs __init__),
     # and the re-initialization must not wipe the registrations
     _completers: ClassVar[IList[typeof[Completer]]] = []
+    # Checker classes contributed by kits (see ``core.checker``); the editors consult
+    # them for the immediate static checking and the compilation before emitting source.
+    # Class-level for the same reason as ``_completers``
+    _checkers: ClassVar[IList[typeof[Checker]]] = []
+    # Static text snippets contributed by kits (keyword -> suggestion); the visual
+    # code edits absorb them into their completion, confirming one inserts its text.
+    # Class-level for the same reason as ``_completers``
+    _snippets: ClassVar[IDictionary[string, Completion]] = {}
 
     def __new__(cls) -> 'Environment':
         if cls._instance is null:
@@ -59,6 +68,8 @@ class Environment:
         self.rt: IDictionary[string, Any] = {}
         # Shared registry (see ``_completers``): re-initialization rebinds it, never clears it
         self.completers = Environment._completers
+        self.checkers = Environment._checkers
+        self.snippets = Environment._snippets
 
     def register_completer(self, completer: typeof[Completer]) -> void:
         """
@@ -67,6 +78,26 @@ class Environment:
         """
         if completer not in self.completers:
             self.completers.append(completer)
+
+    def register_checker(self, checker: typeof[Checker]) -> void:
+        """
+        Register a checker class so the editors and the compilation consult it
+        while validating identifiers and free source text.
+        :param checker: checker class to register (instantiated per project)
+        """
+        if checker not in self.checkers:
+            self.checkers.append(checker)
+
+    def register_snippet(self, snippet: Completion) -> void:
+        """
+        Register a static text snippet the kits contribute to the completion
+        (e.g. a function-like macro call); the visual code edits absorb the
+        registry automatically, so the registration may happen at any time
+        relative to the edit construction. Re-registering a keyword replaces
+        the snippet it maps to.
+        :param snippet: the suggestion carrying the keyword and its text
+        """
+        self.snippets[snippet.keyword] = snippet
 
     def satisfy_kit_version(self, kit: Kit) -> bool:
         return kit.meta.satisfy_version(self.version)
@@ -97,11 +128,12 @@ class Environment:
                 self.languages.append(lang)
         return kit
 
-    def build(self, config: Nullable[BuildConfig] = null) -> IList[Path]:
+    def build(self, config: Nullable[BuildConfig] = null) -> tuple[IList[Path], IList[Builder.BuildWarning]]:
         """
         Build the loaded project: compile its scripts and write the products to files.
         :param config: building configuration; defaults to the project's target language
-        :return: paths of the generated artifacts
+        :return: paths of the generated artifacts and the warnings the compilers
+            raised along the way
         :raise ValueError: raise when no project is loaded
         """
         if self.project is null:

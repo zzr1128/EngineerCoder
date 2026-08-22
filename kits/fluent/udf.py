@@ -20,6 +20,7 @@ and records the declarations per block (``ScopeKey``), and the renderers of the
 block-introducing edits emit them ahead of the block contents.
 """
 
+import copy
 import re
 
 from alias import *
@@ -28,6 +29,7 @@ from core.build import Compiler
 from core.component import Component, ComponentDelegation, ComponentMetadata
 from core.environment import Environment
 from kits.fluent.fluent import UDF, fluent
+from kits.fluent.localization import _
 
 Indent: Final[string] = '    '
 
@@ -40,6 +42,13 @@ OccupiedKey: Final[string] = '_ec_counters'
 # maps the identity of a block-introducing edit archive to the declarations that
 # must precede its contents; carried in the compiler's products
 ScopeKey: Final[string] = '_ec_scope'
+
+# Role-bearing contexts opened while rendering components that declare
+# identifiers (the ``DEFINE_*`` macros, the traversal loops): a stack of
+# role -> identifier maps ('cell', 'thread'...) the nested context-aware
+# components resolve their arguments through; carried in the compiler's
+# products. The innermost context providing a role wins
+ContextKey: Final[string] = '_ec_context'
 
 # Archive keys that open a fresh block scope; the other keys of a component
 # archive (conditions, counts, values) stay in the enclosing scope
@@ -75,7 +84,7 @@ def render_edit(data: IDictionary[string, Any], builder: Compiler) -> string:
 
 def render_component(name: string, data: Any, builder: Compiler) -> string:
     """
-    Render a serialized component into UDF source through its delegation.
+    Render a serialized component into UDF source.
     :param name: complete name of the component (in format 'kit.component')
     :param data: serialization produced by the component's ``__serialize__``
     :param builder: the compiler context (carries the target language)
@@ -85,12 +94,20 @@ def render_component(name: string, data: Any, builder: Compiler) -> string:
 
     Counterpart of ``Component.build`` for archives: nested components exist only as
     serializations, so native compilation (which needs the live component) is out of
-    reach and only delegations can serve them.
+    reach. A component natively supporting the language renders through its own
+    archive-based ``render`` classmethod (mirroring ``render_unit``): the
+    statement-level components the kits contribute for the language (e.g. the
+    mesh traversal loops) nest inside visual code edits this way; the other
+    components render through their delegations.
     """
     meta = Environment.instance().kit_manager.lookup(name)
     lang = builder.config.target_lang
     if lang in meta.languages:
-        raise Compiler.BuildError(Compiler.B1004, lang.name, meta.name)
+        # Native at nest level: the component type renders its own archive
+        render = getattr(meta.component_type, 'render', null)
+        if render is null:
+            raise Compiler.BuildError(Compiler.B1004, lang.name, meta.name)
+        return render(data, builder)
 
     match meta.delegations.valid(lang):
         case ComponentMetadata.Delegation.VALID:
@@ -162,6 +179,9 @@ def analyze_scope(unit_data: IDictionary[string, Any], builder: Compiler) -> voi
     occupied: HashSet[string] = builder.products.setdefault(OccupiedKey, HashSet[string]())
 
     definitions: IDictionary[string, IList[tuple[int, ...]]] = {}
+    # The declared type of every hoisted name: the type field of the defining
+    # assignment decides it (the first annotation wins), defaulting to ``real``
+    declared_types: IDictionary[string, string] = {}
 
     def collect_definition(name: string, data: Any, path: tuple[int, ...]) -> void:
         maybe_unused(path)
@@ -180,6 +200,7 @@ def analyze_scope(unit_data: IDictionary[string, Any], builder: Compiler) -> voi
             target = target.get('text', '') if not target.get('components') else ''
         if isinstance(target, string) and target.strip():
             definitions.setdefault(target.strip(), []).append(path)
+            declared_types.setdefault(target.strip(), _udf_type(data.get('type', '')))
 
     def seed_occupation(text: string, path: tuple[int, ...]) -> void:
         if path:
@@ -218,7 +239,226 @@ def analyze_scope(unit_data: IDictionary[string, Any], builder: Compiler) -> voi
         common = _common_prefix(paths)
         # The innermost common block; the unit root when nothing deeper is shared
         block = common[-1] if common else id(unit_data)
-        hoist.setdefault(block, []).append(f'real {name};')
+        hoist.setdefault(block, []).append(f'{declared_types.get(name, "real")} {name};')
+
+
+def _udf_type(type_key: Any) -> string:
+    """
+    :return: the C type the type key of an assignment stands for in UDF source:
+        ``int`` and ``char`` pass through, everything else declares ``real``
+        (the UDF alias of ``double``)
+    """
+    return type_key if type_key in ('int', 'char') else 'real'
+
+
+def validate_unit(unit_data: IDictionary[string, Any], builder: Compiler) -> void:
+    """
+    Statically check the identifiers a translation-unit archive declares before
+    rendering consumes it: every function name, macro parameter, loop counter
+    and assignment target the components embed must be a valid C identifier
+    (the checkers registered in the environment decide, so the C standard the
+    project configures applies). Free C text stays unchecked here: it is
+    incomplete fragments and the immediate checking of the edition covers it.
+    :param unit_data: serialization of the translation-unit edit
+    :param builder: the compiler context
+    :raise Compiler.CompileError: raise B1006 listing every problem found
+    """
+    maybe_unused(builder)
+    environment = Environment.instance()
+    kit_manager = environment.kit_manager
+    problems: IList[string] = []
+
+    def identifier_problem(text: string) -> Nullable[string]:
+        for checker_type in environment.checkers:
+            diagnostic = checker_type(environment.project).check_identifier(text)
+            if diagnostic is not null and diagnostic.severity == 'error':
+                return diagnostic.message
+        return null
+
+    def check(display: string, value: Any, empty_message: Nullable[string] = null) -> void:
+        if not isinstance(value, string):
+            return
+        text = value.strip()
+        if not text:
+            if empty_message is not null:
+                problems.append(f'{display}: {empty_message}')
+            return
+        message = identifier_problem(text)
+        if message is not null:
+            problems.append(f'{display}: {message}')
+
+    def on_component(name: string, data: Any, path: tuple[int, ...]) -> void:
+        maybe_unused(path)
+        if not isinstance(data, dict):
+            return
+        display = kit_manager.lookup(name).display_name
+        if name == 'clk.assign':
+            target = data.get('name', '')
+            if isinstance(target, dict):
+                # A target embedding components names no plain variable
+                target = target.get('text', '') if not target.get('components') else ''
+            check(display, target, _('validate_empty_name'))
+        elif name == 'clk.for':
+            # An absent or empty counter gets auto-named at render time
+            check(display, data.get('counter', ''))
+        elif name.startswith('fluent.'):
+            # DEFINE_* macros declare a function name and parameter identifiers;
+            # the traversal loops declare the identifiers their arguments name
+            if 'name' in data:
+                check(display, data['name'], _('validate_empty_name'))
+            args = data.get('args')
+            if isinstance(args, list):
+                for arg in args:
+                    check(display, arg, _('validate_empty_arg'))
+
+    def on_text(text: string, path: tuple[int, ...]) -> void:
+        maybe_unused(text, path)
+
+    _walk_archive(unit_data, (), on_text, on_component)
+    if problems:
+        raise Compiler.CompileError(Compiler.B1006, '\n'.join(problems))
+
+
+# A minimal stand-in for Fluent's udf.h: ``check_product`` compiles the rendered
+# translation unit against it, so the DEFINE_* macros, the traversal loops and
+# the API macros the kits emit (or their snippets insert) resolve to plausible
+# C constructs. The loop macros introduce their loop variables in ``for``
+# initializers (C99), the field accessors expand to lvalues, and the stub itself
+# stays silent in every standard the check runs (see ``check_product``); every
+# diagnostic inside the stub's own lines is discarded
+_UdfStub: Final[string] = """\
+#include <stdio.h>
+typedef double real;
+typedef struct { real _ec_stub; } Thread, Domain, Node, Injection, Tracked_Part,
+    Dynamic_Thread, Phase, Reaction, Source, Pollut_Cell, Pollut_Parameter,
+    NOx_Model, SOx_Model;
+typedef int cell_t, face_t;
+#define DEFINE_ADJUST(name, d) void name(Domain *d)
+#define DEFINE_INIT(name, d) void name(Domain *d)
+#define DEFINE_EXECUTE_AT_END(name) void name(void)
+#define DEFINE_ON_DEMAND(name) void name(void)
+#define DEFINE_RW_FILE(name, fp) void name(FILE *fp)
+#define DEFINE_DELTAT(name, d) real name(Domain *d)
+#define DEFINE_EXECUTE_FROM_GUI(name, msg) void name(int msg)
+#define DEFINE_PROFILE(name, t, i) void name(Thread *t, int i)
+#define DEFINE_SOURCE(name, c, t, dS, eqn) real name(cell_t c, Thread *t, real dS[], int eqn)
+#define DEFINE_PROPERTY(name, c, t) real name(cell_t c, Thread *t)
+#define DEFINE_DIFFUSIVITY(name, c, t, i) real name(cell_t c, Thread *t, int i)
+#define DEFINE_TURBULENT_VISCOSITY(name, c, t) real name(cell_t c, Thread *t)
+#define DEFINE_PRANDTL(name, c, t) real name(cell_t c, Thread *t)
+#define DEFINE_TURB_SCHMIDT(name, c, t, i) real name(cell_t c, Thread *t, int i)
+#define DEFINE_SPECIFIC_HEAT(name, T, Tref, h, yi) real name(real T, real Tref, real *h, real yi[])
+#define DEFINE_HEAT_FLUX(name, f, t, c0, t0, cid, cir) void name(face_t f, Thread *t, cell_t c0, Thread *t0, real cid[], real cir[])
+#define DEFINE_VR_RATE(name, c, t, r, mw, yi, rr, rr_t) void name(cell_t c, Thread *t, Reaction *r, real *mw, real *yi, real *rr, real *rr_t)
+#define DEFINE_SR_RATE(name, f, t, r, mw, yi, rr) void name(face_t f, Thread *t, Reaction *r, real *mw, real *yi, real *rr)
+#define DEFINE_CAVITATION_RATE(name, c, t, p, rhoV, rhoL, mafV, p_v, cigma, f_gas, m_dot) void name(cell_t c, Thread *t, real p, real rhoV, real rhoL, real mafV, real p_v, real cigma, real f_gas, real *m_dot)
+#define DEFINE_NOX_RATE(name, c, t, Pollut, Pollut_Par, NOx) void name(cell_t c, Thread *t, Pollut_Cell *Pollut, Pollut_Parameter *Pollut_Par, NOx_Model *NOx)
+#define DEFINE_SOX_RATE(name, c, t, Pollut, Pollut_Par, SOx) void name(cell_t c, Thread *t, Pollut_Cell *Pollut, Pollut_Parameter *Pollut_Par, SOx_Model *SOx)
+#define DEFINE_CPHI(name, c, t) real name(cell_t c, Thread *t)
+#define DEFINE_DOM_SOURCE(name, c, t, s, xi, emission, in_scattering, abs_coeff, scat_coeff) void name(cell_t c, Thread *t, int s, real xi, real *emission, real *in_scattering, real *abs_coeff, real *scat_coeff)
+#define DEFINE_EMISSIVITY_WEIGHTING_FACTOR(name, c, t, s, xi, weight) void name(cell_t c, Thread *t, int s, real xi, real *weight)
+#define DEFINE_DPM_INJECTION_INIT(name, I) void name(Injection *I)
+#define DEFINE_DPM_LAW(name, p, ci) void name(Tracked_Part *p, int ci)
+#define DEFINE_DPM_DRAG(name, p, Re) real name(Tracked_Part *p, real Re)
+#define DEFINE_DPM_BODY_FORCE(name, p, mass, F, Fd) real name(Tracked_Part *p, real mass, real F[], real Fd)
+#define DEFINE_DPM_SOURCE(name, cell, thread, S, strength, p) void name(cell_t cell, Thread *thread, Source *S, real strength, Tracked_Part *p)
+#define DEFINE_DPM_BC(name, p, t, f, f_normal, dim) void name(Tracked_Part *p, Thread *t, face_t f, real f_normal[], int dim)
+#define DEFINE_GRID_MOTION(name, d, dt, time, dtime) void name(Domain *d, Dynamic_Thread *dt, real time, real dtime)
+#define DEFINE_CG_MOTION(name, dt, cg_velocity, cg_omega, time, dtime) void name(Dynamic_Thread *dt, real cg_velocity[], real cg_omega[], real time, real dtime)
+#define DEFINE_MASS_TRANSFER(name, from, from_t, to, to_t) real name(Phase *from, Thread *from_t, Phase *to, Thread *to_t)
+#define DEFINE_EXCHANGE_PROPERTY(name, from, from_t, to, to_t) real name(Phase *from, Thread *from_t, Phase *to, Thread *to_t)
+#define DEFINE_VECTOR_EXCHANGE_PROPERTY(name, from, from_t, to, to_t) void name(Phase *from, Thread *from_t, Phase *to, Thread *to_t)
+#define thread_loop_c(t, d) for (Thread *t = (Thread *)0; t; )
+#define thread_loop_f(t, d) for (Thread *t = (Thread *)0; t; )
+#define begin_c_loop(c, t) for (cell_t c = 0; c; )
+#define end_c_loop(c, t)
+#define c_face_loop(c, t, n) for (int n = 0; n; )
+#define c_node_loop(c, t, n) for (int n = 0; n; )
+#define C_T(...) (*(volatile real *)0)
+#define C_P(...) (*(volatile real *)0)
+#define C_U(...) (*(volatile real *)0)
+#define C_V(...) (*(volatile real *)0)
+#define C_W(...) (*(volatile real *)0)
+#define C_R(...) (*(volatile real *)0)
+#define C_MU_L(...) (*(volatile real *)0)
+#define C_K_L(...) (*(volatile real *)0)
+#define C_T_G(...) (*(volatile real *)0)
+#define C_P_G(...) (*(volatile real *)0)
+#define C_CENTROID(...) (*(volatile real (*)[3])0)
+#define C_VOLUME(...) (*(volatile real *)0)
+#define C_UDMI(...) (*(volatile real *)0)
+#define F_T(...) (*(volatile real *)0)
+#define F_P(...) (*(volatile real *)0)
+#define F_U(...) (*(volatile real *)0)
+#define F_V(...) (*(volatile real *)0)
+#define F_W(...) (*(volatile real *)0)
+#define F_CENTROID(...) (*(volatile real (*)[3])0)
+#define F_PROFILE(...) (*(volatile real *)0)
+#define C_PROFILE(...) (*(volatile real *)0)
+#define F_AREA(...) (*(volatile real (*)[3])0)
+#define F_FLUX(...) (*(volatile real *)0)
+#define F_FLUX_I(...) (*(volatile real *)0)
+#define F_VOF(...) (*(volatile real *)0)
+#define F_YI(...) (*(volatile real *)0)
+#define F_RHO(...) (*(volatile real *)0)
+#define F_C0(...) ((cell_t)0)
+#define F_C1(...) ((cell_t)0)
+#define F_UDMI(...) (*(volatile real *)0)
+#define C_FACE(...) ((face_t)0)
+#define C_FACE_THREAD(...) ((Thread *)0)
+#define C_NODE(...) ((Node *)0)
+#define RP_2D ((int)0)
+#define RP_3D ((int)1)
+#define ND_ND 3
+#define NV_V(...) ((void)0)
+#define NV_VV(...) ((void)0)
+#define NV_MAG(...) ((real)0)
+#define NV_DOT(...) ((real)0)
+#define PRF_GIHIGH1(...) ((int)0)
+#define PRF_GRSUM1(...) ((real)0)
+#define FL_MALLOC(...) ((void *)0)
+#define FL_FREE(...) ((void)0)
+#define CURRENT_TIMESTEP ((int)0)
+#define CURRENT_TIME ((real)0)
+#define PREVIOUS_TIME ((real)0)
+#define Message(...) ((void)0)
+#define Lookup_Thread(...) ((Thread *)0)
+#define THREAD_ID(...) ((int)0)
+#define THREAD_TYPE(...) ((int)0)
+#define PHASE_INDEX(...) ((int)0)
+"""
+_UdfStubLines: Final[int] = _UdfStub.count('\n')
+
+
+def check_product(body: string, builder: Compiler) -> void:
+    """
+    Check that the rendered translation-unit body can plausibly pass C
+    compilation: compile it against the udf.h stand-in (``_UdfStub``) through
+    the checkers registered in the environment and record every error of the
+    body itself as a B1007 compile warning (the build itself stays green;
+    the warning surfaces in the build message panel).
+    :param body: the rendered source of the translation unit (without the
+        leading ``#include "udf.h"``)
+    :param builder: the compiler context receiving the warning
+    """
+    if not body.strip():
+        return
+    environment = Environment.instance()
+    project = environment.project
+    # The stub needs C99 loop initializers, and unresolved API names must stay
+    # implicit calls (errors from C23 onwards): clamp the standard into the
+    # range the stub itself compiles silently in
+    if project is not null and project.c_standard not in ('c99', 'c11', 'c17'):
+        project = copy.copy(project)
+        project.c_standard = 'c99' if project.c_standard in ('c89', 'c90') else 'c17'
+    problems: IList[string] = []
+    for checker_type in environment.checkers:
+        for diagnostic in checker_type(project).check_source(_UdfStub + body + '\n'):
+            if diagnostic.severity != 'error' or diagnostic.line <= _UdfStubLines:
+                continue  # Inside the stub's own lines, not the user's code
+            problems.append(f'{diagnostic.line - _UdfStubLines}: {diagnostic.message}')
+    if problems:
+        builder.warnings.append(Compiler.CompileWarning(Compiler.B1007, '\n'.join(problems)))
 
 
 def _hoist_prefix(builder: Compiler, edit_data: IDictionary[string, Any]) -> string:
@@ -230,6 +470,60 @@ def _hoist_prefix(builder: Compiler, edit_data: IDictionary[string, Any]) -> str
     hoist = builder.products.get(ScopeKey, {})
     declarations: IList[string] = hoist.get(id(edit_data), [])
     return ''.join(declaration + '\n' for declaration in declarations)
+
+
+def enter_context(builder: Compiler, roles: IDictionary[string, string]) -> void:
+    """
+    Open a context mapping semantic roles to the identifiers in scope while
+    the caller renders (see ``ContextKey``); pair with ``exit_context`` around
+    the rendering of the body the identifiers belong to.
+    :param builder: the compiler context
+    :param roles: role -> identifier mappings the caller introduces
+    """
+    stack: IList[IDictionary[string, string]] = builder.products.setdefault(ContextKey, [])
+    stack.append(dict(roles))
+
+
+def exit_context(builder: Compiler) -> void:
+    """
+    Close the most recent context opened by ``enter_context``.
+    :param builder: the compiler context
+    """
+    stack: IList[IDictionary[string, string]] = builder.products.get(ContextKey, [])
+    if stack:
+        stack.pop()
+
+
+def context_role(builder: Compiler, role: string) -> string:
+    """
+    :param builder: the compiler context
+    :param role: semantic role of the identifier ('cell', 'thread'...)
+    :return: the identifier the innermost open context assigns to the role
+        (empty when no context provides it)
+    """
+    stack: IList[IDictionary[string, string]] = builder.products.get(ContextKey, [])
+    for frame in reversed(stack):
+        identifier = frame.get(role, '')
+        if identifier:
+            return identifier
+    return ''
+
+
+def fresh_name(base: string, occupied: ICollection[string]) -> string:
+    """
+    Pick an identifier derived from ``base`` that is not occupied yet: ``base``
+    itself when free, otherwise ``base`` suffixed with an up-counting index
+    (``dS``, ``dS_1``, ``dS_2``...). The caller occupies the returned name.
+    :param base: the identifier the name derives from
+    :param occupied: identifiers that must not be reused
+    :return: the first candidate that is not occupied yet
+    """
+    name = base
+    index = 1
+    while name in occupied:
+        name = f'{base}_{index}'
+        index += 1
+    return name
 
 
 def _walk_archive(archive: IDictionary[string, Any], path: tuple[int, ...],
@@ -403,7 +697,8 @@ class UdfFor(UdfDelegation):
 @fluent.register
 class UdfAssign(UdfDelegation):
     """Assignment compiles into ``name = value;``; checking ``constant`` declares
-    the value as a ``const real`` instead (UDF uses ``real`` for floating point).
+    the value as a constant of the annotated type instead (``const real`` by
+    default: UDF uses ``real`` for floating point, see ``_udf_type``).
     The target may embed a member access (``cell.volume``...) since it archives
     as a visual code edit."""
 
@@ -424,19 +719,26 @@ class UdfAssign(UdfDelegation):
         name = name.strip()
         value = render_edit(data['value'], builder).strip()
         if data['constant']:
-            return f'const real {name} = {value};'
+            # 'type' is absent in archives made before the field existed
+            return f'const {_udf_type(data.get("type", ""))} {name} = {value};'
         return f'{name} = {value};'
 
 
 class UdfOperator(UdfDelegation):
-    """An arithmetic operator renders as its C symbol; it carries no fields."""
+    """A binary operator renders as ``(left symbol right)``: the parentheses
+    keep the precedence intact when the expression nests. Archives made before
+    the operands existed carry no keys and render as the bare symbol."""
 
     symbol: ClassVar[string] = ''
 
     @classmethod
     def render(cls, data: Any, builder: Compiler) -> string:
-        maybe_unused(data, builder)
-        return cls.symbol
+        if not isinstance(data, dict) or ('left' not in data and 'right' not in data):
+            return cls.symbol  # Legacy archive: the bare symbol
+        empty: IDictionary[string, Any] = {'text': '', 'components': []}
+        left = data['left'] if 'left' in data else empty
+        right = data['right'] if 'right' in data else empty
+        return f'({render_edit(left, builder).strip()} {cls.symbol} {render_edit(right, builder).strip()})'
 
 
 @fluent.register
@@ -482,6 +784,60 @@ class UdfModulus(UdfOperator):
     @classmethod
     def delegated(cls) -> ComponentDelegation.DelegationTarget:
         return ComponentDelegation.DelegationTarget((UDF,), 'clk.modulus')
+
+
+@fluent.register
+class UdfGreater(UdfOperator):
+    symbol = '>'
+
+    @classmethod
+    def delegated(cls) -> ComponentDelegation.DelegationTarget:
+        return ComponentDelegation.DelegationTarget((UDF,), 'clk.greater')
+
+
+@fluent.register
+class UdfLess(UdfOperator):
+    symbol = '<'
+
+    @classmethod
+    def delegated(cls) -> ComponentDelegation.DelegationTarget:
+        return ComponentDelegation.DelegationTarget((UDF,), 'clk.less')
+
+
+@fluent.register
+class UdfGreaterEqual(UdfOperator):
+    symbol = '>='
+
+    @classmethod
+    def delegated(cls) -> ComponentDelegation.DelegationTarget:
+        return ComponentDelegation.DelegationTarget((UDF,), 'clk.greater_equal')
+
+
+@fluent.register
+class UdfLessEqual(UdfOperator):
+    symbol = '<='
+
+    @classmethod
+    def delegated(cls) -> ComponentDelegation.DelegationTarget:
+        return ComponentDelegation.DelegationTarget((UDF,), 'clk.less_equal')
+
+
+@fluent.register
+class UdfEqual(UdfOperator):
+    symbol = '=='
+
+    @classmethod
+    def delegated(cls) -> ComponentDelegation.DelegationTarget:
+        return ComponentDelegation.DelegationTarget((UDF,), 'clk.equal')
+
+
+@fluent.register
+class UdfNotEqual(UdfOperator):
+    symbol = '!='
+
+    @classmethod
+    def delegated(cls) -> ComponentDelegation.DelegationTarget:
+        return ComponentDelegation.DelegationTarget((UDF,), 'clk.not_equal')
 
 
 @fluent.register

@@ -20,19 +20,31 @@ msgstr "未知的构建错误。"
 
 #: core/build.py:47
 msgid "B1002"
-msgstr "无效的构建配置：{1}"
+msgstr "无效的构建配置：{0}"
 
 #: core/build.py:48
 msgid "B1003"
-msgstr "构建时发生I/O异常：{1}"
+msgstr "构建时发生I/O异常：{0}"
 
 #: core/build.py:49
 msgid "B1004"
-msgstr "组件 \"{2}\" 不支持语言 \"{1}\"。"
+msgstr "组件 \"{1}\" 不支持语言 \"{0}\"。"
 
 #: core/build.py:50
 msgid "B1005"
-msgstr "语言 \"{1}\" 有多个冲突组件 \"{2}\"。"
+msgstr "语言 \"{0}\" 有多个冲突组件 \"{1}\"。"
+
+#: core/build.py:51
+msgid "B1006"
+msgstr ""
+"静态检查拒绝了以下内容：\n"
+"{0}"
+
+#: core/build.py
+msgid "B1007"
+msgstr ""
+"生成的代码可能无法通过C语言编译：\n"
+"{0}"
 
 #: core/build.py:75
 msgid "CPG.enter.open_fail"
@@ -108,8 +120,36 @@ msgstr "没有已加载的项目可供构建。"
 
 #: interface/editor.py
 msgid "ui.build.success"
-msgstr "构建成功：{1}"
+msgstr "构建成功：{0}"
 
 #: interface/editor.py
 msgid "ui.build.fail"
-msgstr "构建失败：{1}"
+msgstr "构建失败：{0}"
+
+#: interface/editor.py
+msgid "ui.build.title"
+msgstr "编译消息"
+
+#: interface/editor.py
+msgid "ui.build.column.level"
+msgstr "级别"
+
+#: interface/editor.py
+msgid "ui.build.column.code"
+msgstr "代码"
+
+#: interface/editor.py
+msgid "ui.build.column.message"
+msgstr "消息"
+
+#: interface/editor.py
+msgid "ui.build.level.error"
+msgstr "错误"
+
+#: interface/editor.py
+msgid "ui.build.level.info"
+msgstr "信息"
+
+#: interface/editor.py
+msgid "ui.build.level.warning"
+msgstr "警告"

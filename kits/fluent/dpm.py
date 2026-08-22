@@ -25,7 +25,7 @@ from alias import *
 from core.component import Component, ComponentMetadata
 from core.kit import KitManager
 from kits.fluent.fluent import UDF, fluent
-from kits.fluent.general import CFluentMacro
+from kits.fluent.general import CFluentMacro, MacroArgument
 from kits.fluent.localization import _
 
 
@@ -63,11 +63,13 @@ class CDpmLaw(CFluentMacro):
 class CDpmDrag(CFluentMacro):
     """``DEFINE_DPM_DRAG(name, p, Re)``: UDF defining a custom drag
     coefficient for discrete phase particles; ``p`` names the tracked particle
-    (``Tracked_Part *``), ``Re`` the particle Reynolds number; the body must
-    return the multiplier of the standard drag coefficient as a ``real``."""
+    (``Tracked_Part *``), ``Re`` the particle Reynolds number; the result
+    field supplies the multiplier of the standard drag coefficient the macro
+    returns."""
     macro = 'DEFINE_DPM_DRAG'
     args_spec = ((_('label_particle'), 'p'), (_('label_reynolds_number'), 'Re'))
     completion_keyword = 'dpm_drag'
+    return_type = 'real'
 
 
 @fluent.register
@@ -97,7 +99,8 @@ class CDpmSource(CFluentMacro):
     ``strength`` the particle source strength, ``p`` the tracked particle
     (``Tracked_Part *``)."""
     macro = 'DEFINE_DPM_SOURCE'
-    args_spec = ((_('label_cell'), 'cell'), (_('label_thread'), 'thread'), (_('label_source'), 'S'),
+    args_spec = (MacroArgument(_('label_cell'), 'cell', role='cell'),
+                 MacroArgument(_('label_thread'), 'thread', role='thread'), (_('label_source'), 'S'),
                  (_('label_strength'), 'strength'), (_('label_particle'), 'p'))
     completion_keyword = 'dpm_source'
 
