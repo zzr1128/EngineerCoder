@@ -20,6 +20,7 @@ from kits.fluent.fluent import UDF
 from interface.ui_style_editor import Ui_EditorWindow
 from interface.edition_canvas import EditionCanvas
 from interface.component_palette import ComponentPalette
+from interface.project_properties_dialog import ProjectPropertiesDialog
 
 
 @final
@@ -471,6 +472,12 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
         self.menu_file.addAction(self.action_save_as)
         self.menu_file.addSeparator()
         self.menu_file.addAction(self.action_add_script)
+        self.menu_file.addSeparator()
+
+        self.action_properties = QAction(_('ui.action.properties'), self)
+        self.action_properties.setShortcut(QKeySequence('Alt+Return'))
+        self.action_properties.triggered.connect(self.show_project_properties)
+        self.menu_file.addAction(self.action_properties)
 
         self.menu_edit = self.menubar.addMenu(_('ui.menu.edit'))
         self.menu_view = self.menubar.addMenu(_('ui.menu.view'))
@@ -684,6 +691,17 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
         while container is not null and not isinstance(container, QScrollArea):
             container = container.parentWidget()
         self.tabWidget_editor.setCurrentWidget(container)
+
+    def show_project_properties(self) -> void:
+        """Open the project properties dialog and apply changes on accept."""
+        if self.env.project is null:
+            return
+        dlg = ProjectPropertiesDialog(self.env.project, self.env.kit_manager, self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            old_name = self.env.project.name
+            dlg.apply_to(self.env.project)
+            if self.env.project.name != old_name:
+                self._update_title()
 
     def _next_untitled_name(self) -> string:
         """The first free 'Untitled-N' display name for a freshly added script."""

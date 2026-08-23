@@ -27,7 +27,18 @@ class Project:
         # rules of the static checking (the keyword sets, see ``core.checker``);
         # supported values: c89, c99, c11, c17, c23
         self.c_standard: string = 'c99'
+        # The build settings of the project (optimization level, output
+        # directory); persisted with the archive and editable in the UI
+        self.build_config: BuildConfig = BuildConfig(lang)
         self._dirty: bool = False
+
+    @classmethod
+    def available_c_standards(cls) -> IList[string]:
+        """
+        Enumerate the C standards a project may compile against.
+        :return: the supported standards in ascending order
+        """
+        return ['c89', 'c99', 'c11', 'c17', 'c23']
 
     def __serialize__(self) -> IDictionary[string, Any]:
         return {
@@ -36,6 +47,7 @@ class Project:
             'target_lang': serialize(self.target_lang),
             'scripts': [serialize(script) for script in self.scripts],
             'c_standard': self.c_standard,
+            'build_config': serialize(self.build_config),
         }
 
     @classmethod
@@ -64,6 +76,11 @@ class Project:
         c_standard = data.get('c_standard', 'c99')
         if isinstance(c_standard, string) and c_standard.strip():
             proj.c_standard = c_standard.strip()
+        # 'build_config' is absent in archives made before the setting existed;
+        # such projects keep the default configuration of ``__init__``
+        build_config = data.get('build_config', null)
+        if isinstance(build_config, dict):
+            proj.build_config = deserialize(BuildConfig, build_config)
         return proj
 
     def save(self, path: string | Path) -> void:

@@ -253,3 +253,67 @@ msgstr "Script name:"
 #: interface/editor.py
 msgid "ui.dialog.script_exists"
 msgstr "A script with this name already exists."
+
+#: interface/project_properties_dialog.py
+msgid "ui.dialog.properties_title"
+msgstr "Project Properties"
+
+#: interface/project_properties_dialog.py
+msgid "ui.props.tab.general"
+msgstr "General"
+
+#: interface/project_properties_dialog.py
+msgid "ui.props.tab.kits"
+msgstr "Kits"
+
+#: interface/project_properties_dialog.py
+msgid "ui.props.tab.build"
+msgstr "Build"
+
+#: interface/project_properties_dialog.py
+msgid "ui.props.name"
+msgstr "Project Name:"
+
+#: interface/project_properties_dialog.py
+msgid "ui.props.target_lang"
+msgstr "Target Language:"
+
+#: interface/project_properties_dialog.py
+msgid "ui.props.c_standard"
+msgstr "C Standard:"
+
+#: interface/project_properties_dialog.py
+msgid "ui.props.output_dir"
+msgstr "Output Directory:"
+
+#: interface/project_properties_dialog.py
+msgid "ui.props.browse"
+msgstr "Browse..."
+
+#: interface/project_properties_dialog.py
+msgid "ui.props.opt_level"
+msgstr "Optimization Level:"
+
+#: interface/project_properties_dialog.py
+msgid "ui.props.opt.none"
+msgstr "No Optimization (O0)"
+
+#: interface/project_properties_dialog.py
+msgid "ui.props.opt.basic"
+msgstr "Basic Optimization (O1)"
+
+#: interface/project_properties_dialog.py
+msgid "ui.props.opt.standard"
+msgstr "Standard Optimization (O2)"
+
+#: interface/project_properties_dialog.py
+msgid "ui.props.opt.aggressive"
+msgstr "Aggressive Optimization (O3)"
+
+#: interface/project_properties_dialog.py
+msgid "ui.props.kits.none"
+msgstr "No kits are currently imported."
+
+#: interface/editor.py
+msgid "ui.action.properties"
+msgstr "Project Properties..."

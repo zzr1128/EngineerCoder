@@ -339,6 +339,21 @@ class KitManager:
     def __len__(self) -> int:
         return len(self._kits)
 
+    def available_kits(self) -> IList[IDictionary[string, string]]:
+        """
+        Enumerate the metadata of every registered kit.
+        :return: a list of dictionaries carrying the 'name', 'display_name'
+            and 'description' of each kit, in registration order
+        """
+        return [
+            {
+                'name': kit.meta.name,
+                'display_name': kit.meta.display_name,
+                'description': kit.meta.description,
+            }
+            for kit in self._kits.values()
+        ]
+
     class InvalidComponentNameError(Exception):
         pass
 

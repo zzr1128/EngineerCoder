@@ -253,3 +253,67 @@ msgstr "脚本名称："
 #: interface/editor.py
 msgid "ui.dialog.script_exists"
 msgstr "已存在同名脚本。"
+
+#: interface/project_properties_dialog.py
+msgid "ui.dialog.properties_title"
+msgstr "项目属性"
+
+#: interface/project_properties_dialog.py
+msgid "ui.props.tab.general"
+msgstr "常规"
+
+#: interface/project_properties_dialog.py
+msgid "ui.props.tab.kits"
+msgstr "组件库"
+
+#: interface/project_properties_dialog.py
+msgid "ui.props.tab.build"
+msgstr "构建"
+
+#: interface/project_properties_dialog.py
+msgid "ui.props.name"
+msgstr "项目名称："
+
+#: interface/project_properties_dialog.py
+msgid "ui.props.target_lang"
+msgstr "目标语言："
+
+#: interface/project_properties_dialog.py
+msgid "ui.props.c_standard"
+msgstr "C 标准："
+
+#: interface/project_properties_dialog.py
+msgid "ui.props.output_dir"
+msgstr "输出目录："
+
+#: interface/project_properties_dialog.py
+msgid "ui.props.browse"
+msgstr "浏览..."
+
+#: interface/project_properties_dialog.py
+msgid "ui.props.opt_level"
+msgstr "优化等级："
+
+#: interface/project_properties_dialog.py
+msgid "ui.props.opt.none"
+msgstr "无优化 (O0)"
+
+#: interface/project_properties_dialog.py
+msgid "ui.props.opt.basic"
+msgstr "基本优化 (O1)"
+
+#: interface/project_properties_dialog.py
+msgid "ui.props.opt.standard"
+msgstr "标准优化 (O2)"
+
+#: interface/project_properties_dialog.py
+msgid "ui.props.opt.aggressive"
+msgstr "激进优化 (O3)"
+
+#: interface/project_properties_dialog.py
+msgid "ui.props.kits.none"
+msgstr "当前没有已导入的组件库。"
+
+#: interface/editor.py
+msgid "ui.action.properties"
+msgstr "项目属性..."

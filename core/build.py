@@ -23,6 +23,23 @@ class BuildConfig:
     # Directory receiving the build artifacts; null lets the project resolve a default
     output: Nullable[Path] = null
 
+    def __serialize__(self) -> IDictionary[string, Any]:
+        return {
+            'target_lang': serialize(self.target_lang),
+            'opt_level': self.opt_level,
+            'output': str(self.output) if self.output is not null else null,
+        }
+
+    @classmethod
+    def __deserialize__(cls, data: IDictionary[string, Any]) -> Self:
+        require_member(data, 'target_lang', 'opt_level')
+        target_lang = deserialize(SupportedLanguage, data['target_lang'])
+        opt_level = data['opt_level']
+        require_type(opt_level, int, 'opt_level')
+        output_ = data.get('output', null)
+        output = Path(output_) if isinstance(output_, string) and output_.strip() else null
+        return cls(target_lang, opt_level, output)
+
 
 class Builder:
     @dataclass

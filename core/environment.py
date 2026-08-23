@@ -131,7 +131,8 @@ class Environment:
     def build(self, config: Nullable[BuildConfig] = null) -> tuple[IList[Path], IList[Builder.BuildWarning]]:
         """
         Build the loaded project: compile its scripts and write the products to files.
-        :param config: building configuration; defaults to the project's target language
+        :param config: building configuration; defaults to the project's own
+            ``build_config`` (target language, optimization level, output directory)
         :return: paths of the generated artifacts and the warnings the compilers
             raised along the way
         :raise ValueError: raise when no project is loaded
@@ -140,7 +141,7 @@ class Environment:
             raise ValueError('Cannot build: no project is loaded in the environment')
         project = self.project
         if config is null:
-            config = BuildConfig(project.target_lang)
+            config = project.build_config
         return project.build_project(config)
 
     def __repr__(self) -> string:
