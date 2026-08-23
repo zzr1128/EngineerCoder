@@ -153,3 +153,103 @@ msgstr "Info"
 #: interface/editor.py
 msgid "ui.build.level.warning"
 msgstr "Warning"
+
+#: interface/editor.py
+msgid "ui.action.new_project"
+msgstr "New Project"
+
+#: interface/editor.py
+msgid "ui.action.open_project"
+msgstr "Open Project"
+
+#: interface/editor.py
+msgid "ui.action.save"
+msgstr "Save"
+
+#: interface/editor.py
+msgid "ui.action.save_as"
+msgstr "Save As"
+
+#: interface/editor.py
+msgid "ui.action.add_script"
+msgstr "New Script"
+
+#: interface/editor.py
+msgid "ui.project.default_name"
+msgstr "Untitled"
+
+#: interface/editor.py
+msgid "ui.script.default_name"
+msgstr "main"
+
+#: interface/editor.py
+msgid "ui.script.untitled"
+msgstr "Untitled"
+
+#: interface/editor.py
+msgid "ui.dialog.unsaved_title"
+msgstr "Unsaved Changes"
+
+#: interface/editor.py
+msgid "ui.dialog.unsaved_new"
+msgstr "The current project has unsaved changes. Do you want to save before creating a new project?"
+
+#: interface/editor.py
+msgid "ui.dialog.unsaved_open"
+msgstr "The current project has unsaved changes. Do you want to save before opening another project?"
+
+#: interface/editor.py
+msgid "ui.dialog.unsaved_close"
+msgstr "This script has unsaved changes. Do you want to save before closing?"
+
+#: interface/editor.py
+msgid "ui.dialog.unsaved_save_script"
+msgstr "The script '{0}' has unsaved changes. Do you want to save it?"
+
+#: interface/editor.py
+msgid "ui.dialog.open_project"
+msgstr "Open Project"
+
+#: interface/editor.py
+msgid "ui.dialog.ecproj_filter"
+msgstr "EngineerCoder Projects (*.ecproj)"
+
+#: interface/editor.py
+msgid "ui.dialog.open_failed"
+msgstr "Failed to open project"
+
+#: interface/editor.py
+msgid "ui.dialog.save_as"
+msgstr "Save Project As"
+
+#: interface/editor.py
+msgid "ui.dialog.save_script"
+msgstr "Save Script"
+
+#: interface/editor.py
+msgid "ui.dialog.name_script"
+msgstr "Name Script"
+
+#: interface/editor.py
+msgid "ui.dialog.name_script_prompt"
+msgstr "The script '{0}' has no name yet. Choose a name before saving:"
+
+#: interface/editor.py
+msgid "ui.dialog.ecscript_filter"
+msgstr "EngineerCoder Scripts (*.ecscript)"
+
+#: interface/editor.py
+msgid "ui.dialog.save_failed"
+msgstr "Failed to save project"
+
+#: interface/editor.py
+msgid "ui.dialog.add_script"
+msgstr "Add Script"
+
+#: interface/editor.py
+msgid "ui.dialog.script_name"
+msgstr "Script name:"
+
+#: interface/editor.py
+msgid "ui.dialog.script_exists"
+msgstr "A script with this name already exists."

@@ -153,3 +153,103 @@ msgstr "信息"
 #: interface/editor.py
 msgid "ui.build.level.warning"
 msgstr "警告"
+
+#: interface/editor.py
+msgid "ui.action.new_project"
+msgstr "新建项目"
+
+#: interface/editor.py
+msgid "ui.action.open_project"
+msgstr "打开项目"
+
+#: interface/editor.py
+msgid "ui.action.save"
+msgstr "保存"
+
+#: interface/editor.py
+msgid "ui.action.save_as"
+msgstr "另存为"
+
+#: interface/editor.py
+msgid "ui.action.add_script"
+msgstr "新建脚本"
+
+#: interface/editor.py
+msgid "ui.project.default_name"
+msgstr "未命名"
+
+#: interface/editor.py
+msgid "ui.script.default_name"
+msgstr "main"
+
+#: interface/editor.py
+msgid "ui.script.untitled"
+msgstr "未命名"
+
+#: interface/editor.py
+msgid "ui.dialog.unsaved_title"
+msgstr "未保存的更改"
+
+#: interface/editor.py
+msgid "ui.dialog.unsaved_new"
+msgstr "当前项目有未保存的更改。是否在新建项目之前保存？"
+
+#: interface/editor.py
+msgid "ui.dialog.unsaved_open"
+msgstr "当前项目有未保存的更改。是否在打开其他项目之前保存？"
+
+#: interface/editor.py
+msgid "ui.dialog.unsaved_close"
+msgstr "此脚本有未保存的更改。是否在关闭之前保存？"
+
+#: interface/editor.py
+msgid "ui.dialog.unsaved_save_script"
+msgstr "脚本“{0}”有未保存的更改。是否保存？"
+
+#: interface/editor.py
+msgid "ui.dialog.open_project"
+msgstr "打开项目"
+
+#: interface/editor.py
+msgid "ui.dialog.ecproj_filter"
+msgstr "EngineerCoder 项目 (*.ecproj)"
+
+#: interface/editor.py
+msgid "ui.dialog.open_failed"
+msgstr "打开项目失败"
+
+#: interface/editor.py
+msgid "ui.dialog.save_as"
+msgstr "另存为项目"
+
+#: interface/editor.py
+msgid "ui.dialog.save_script"
+msgstr "保存脚本"
+
+#: interface/editor.py
+msgid "ui.dialog.name_script"
+msgstr "命名脚本"
+
+#: interface/editor.py
+msgid "ui.dialog.name_script_prompt"
+msgstr "脚本 '{0}' 尚未命名，请在保存前输入名称："
+
+#: interface/editor.py
+msgid "ui.dialog.ecscript_filter"
+msgstr "EngineerCoder 脚本 (*.ecscript)"
+
+#: interface/editor.py
+msgid "ui.dialog.save_failed"
+msgstr "保存项目失败"
+
+#: interface/editor.py
+msgid "ui.dialog.add_script"
+msgstr "添加脚本"
+
+#: interface/editor.py
+msgid "ui.dialog.script_name"
+msgstr "脚本名称："
+
+#: interface/editor.py
+msgid "ui.dialog.script_exists"
+msgstr "已存在同名脚本。"

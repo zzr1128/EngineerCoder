@@ -10,7 +10,6 @@ class EditorTabWidget(QTabWidget):
     def __init__(self, parent: QWidget):
         super().__init__(parent)
         self.editor = null
-        self.tabCloseRequested.connect(self.onRemoveTab)
 
     def setEditor(self, editor) -> void:
         self.editor = editor

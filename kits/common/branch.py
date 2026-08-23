@@ -84,7 +84,7 @@ class CBranch(Component):
             'then': serialize(self._interface.edit_then),
             'else': serialize(self._interface.edit_else)
         }
-    
+
     @classmethod
     def restore(cls, data: IDictionary[string, Any], parent: Nullable['Component'],
                 graphics: IComponentGraphics) -> Self:

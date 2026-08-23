@@ -3,9 +3,9 @@
 import json
 
 from alias import *
-from path import BASE_DIR
 from core.environment import Environment
 from core.resource import Resource
+from path import BASE_DIR
 
 
 def init_translation() -> Callable[[string], string]:

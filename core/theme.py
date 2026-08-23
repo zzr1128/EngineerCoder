@@ -71,7 +71,7 @@ class Theme:
                     selected=QColor(data['selected'])
                 )
             except Exception:
-                raise Exception(f'Invalid color')
+                raise Exception('Invalid color')
 
     def __init__(self, name: string, display_name: IDictionary[string, string], colors: ThemeColor):
         self.name: string = name

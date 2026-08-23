@@ -1,0 +1,152 @@
+name: CI
+
+on:
+  push:
+    branches: [master, dev]
+  pull_request:
+
+jobs:
+  changed-files:
+    name: Detect changed Python files
+    runs-on: windows-latest
+    outputs:
+      py_files: ${{ steps.detect.outputs.py_files }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Detect changed .py files
+        id: detect
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="origin/${{ github.base_ref }}"
+          else
+            BASE="HEAD~1"
+            git rev-parse --verify --quiet "$BASE" || BASE=""
+          fi
+          if [ -n "$BASE" ]; then
+            FILES=$(git diff --name-only --diff-filter=ACMR "$BASE"...HEAD -- '*.py' | tr '\n' ' ')
+          else
+            FILES=$(git ls-files '*.py' | tr '\n' ' ')
+          fi
+          # keep only files that still exist on disk
+          EXISTING=""
+          for f in $FILES; do
+            if [ -f "$f" ]; then
+              EXISTING="$EXISTING $f"
+            fi
+          done
+          EXISTING=$(echo "$EXISTING" | xargs || true)
+          echo "changed: ${EXISTING:-<none>}"
+          echo "py_files=$EXISTING" >> "$GITHUB_OUTPUT"
+
+  lint:
+    name: Lint (ruff ratchet, changed files)
+    needs: changed-files
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install ruff
+        run: pip install ruff
+      - name: "Ruff ratchet: changed files must not gain violations"
+        if: needs.changed-files.outputs.py_files != ''
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="origin/${{ github.base_ref }}"
+          else
+            BASE="HEAD~1"
+            git rev-parse --verify --quiet "$BASE" || BASE=""
+          fi
+          status=0
+          for f in ${{ needs.changed-files.outputs.py_files }}; do
+            current=$(ruff check --statistics "$f" \
+              | awk '/^Found [0-9]+ error/ { print $2 }')
+            if [ -z "$current" ]; then current=0; fi
+            if [ -n "$BASE" ] && git cat-file -e "$BASE:$f" 2>/dev/null; then
+              mkdir -p base_tmp
+              git show "$BASE:$f" > "base_tmp/base.py"
+              base_count=$(ruff check --statistics base_tmp/base.py \
+                | awk '/^Found [0-9]+ error/ { print $2 }')
+              rm -f base_tmp/base.py
+            else
+              base_count=0  # new file: no violations allowed beyond zero
+            fi
+            if [ -z "$base_count" ]; then base_count=0; fi
+            if [ "$current" -gt "$base_count" ]; then
+              echo "REGRESSION: $f went from $base_count to $current violations"
+              ruff check "$f" || true
+              status=1
+            else
+              echo "ok: $f ($base_count -> $current)"
+            fi
+          done
+          rm -rf base_tmp
+          exit $status
+      - name: Skip (no Python files changed)
+        if: needs.changed-files.outputs.py_files == ''
+        run: echo "no changed .py files to lint"
+
+  syntax:
+    name: Syntax (py_compile, changed files)
+    needs: changed-files
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Compile changed files
+        if: needs.changed-files.outputs.py_files != ''
+        run: python -m py_compile ${{ needs.changed-files.outputs.py_files }}
+      - name: Skip (no Python files changed)
+        if: needs.changed-files.outputs.py_files == ''
+        run: echo "no changed .py files to compile"
+
+  regression:
+    name: Regression (sdk/run_all_checks.py)
+    needs: [lint, syntax]
+    runs-on: windows-latest
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install dependencies
+        run: pip install . babel
+      - name: Compile translations (.mo is gitignored)
+        run: pybabel compile -d res/locale -D messages
+      - name: Run all regression checks
+        run: python sdk/run_all_checks.py
+
+  smoke:
+    name: Smoke test (app boot)
+    needs: [lint, syntax]
+    runs-on: windows-latest
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install dependencies
+        run: pip install . babel
+      - name: Compile translations (.mo is gitignored)
+        run: pybabel compile -d res/locale -D messages
+      - name: Run smoke test
+        run: python sdk/smoke_test.py

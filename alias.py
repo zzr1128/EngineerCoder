@@ -167,7 +167,7 @@ class Delegate(Generic[P, R]):
 
 
 def NotNull(obj: Nullable[T]) -> T:
-    assert obj is not null, f'Null reference'
+    assert obj is not null, 'Null reference'
     return obj
 
 

@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
 
+import json
+from pathlib import Path
+
 from PySide6.QtCore import *
 from PySide6.QtWidgets import *
 from PySide6.QtGui import *
@@ -10,6 +13,7 @@ from core.build import Builder
 from core.localization import _
 from core.script import Script
 from core.environment import Environment
+from core.meta import SupportedLanguage
 from core.project import Project
 from core.resource import Resource
 from kits.fluent.fluent import UDF
@@ -66,7 +70,9 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
 
     @final
     class TabHandler:
-        FreeHandler = 1
+        # Identity counter of allocated handlers; equality and hashing derive
+        # from the allocated value, so every handler must carry a unique one
+        _next_value: int = 1
         __slots__ = ('value', 'title')
 
         def __init__(self, value: int, title: string):
@@ -83,7 +89,9 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
 
         @classmethod
         def allocate(cls, title: string) -> 'EditorWindow.TabHandler':
-            return EditorWindow.TabHandler(cls.FreeHandler, title)
+            handler = EditorWindow.TabHandler(cls._next_value, title)
+            cls._next_value += 1
+            return handler
 
         @property
         def valid(self) -> bool:
@@ -93,6 +101,7 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
         super(EditorWindow, self).__init__(parent)
         self.setupUi(self)
         self.tabs: IDictionary[EditorWindow.TabHandler, EditionCanvas] = {}
+        self._script_handlers: IDictionary[EditorWindow.TabHandler, Script] = {}
         self.tabWidget_editor.setEditor(self)
         self.env = Environment()
 
@@ -119,42 +128,7 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
 
         self.setup()
         self.setup_actions()
-
-        # Test code
-        self.env.import_kit(r'kits/cbased')  # C checker; the fluent kit depends on it
-        self.env.import_kit(r'kits/common')
-        self.env.import_kit(r'kits/fluent')  # UDF delegations for the CLK components
-        # Component palette (left dock): one draggable entry per component the
-        # code completion can insert; the filter box above narrows the listing
-        self.component_palette = ComponentPalette(self.scrollAreaCompContents)
-        self.compArea_layout.addWidget(self.component_palette)
-        # noinspection bad-argument-type
-        self.lineEdit_component.textChanged.connect(self.component_palette.apply_filter)
-        tab = self.create_canvas('TestTab')
-        canvas = self.canvas(tab)
-        # The tab widget is the scroll area wrapping the canvas (through its viewport)
-        container: Nullable[QWidget] = canvas
-        while container is not null and not isinstance(container, QScrollArea):
-            container = container.parentWidget()
-        self.tabWidget_editor.setCurrentWidget(container)
-        # canvas.create_lineedit(QRectF(0, 0, 100, 20))
-        # The script root is a translation unit: a whole-page visual code edit
-        # filling the canvas' client rectangle (leaving only its margin). Type e.g.
-        # "adjust" and press Enter to insert a DEFINE_ADJUST component inline.
-        comp_meta = self.env.kit_manager.lookup('fluent.translation_unit')
-        comp = comp_meta.component_type(null, canvas)
-        canvas.add_interface(comp.interface)
-        self.script = Script(comp)
-        # Test project so that the building pipeline has something to compile
-        project = Project('Test', UDF)
-        project.scripts.append(self.script)
-        self.env.project = project
-        # comp.interface.paint(canvas)
-        # Visual code edit: type e.g. "if" and press Enter to insert a Branch component
-        # inline into the text. Non-positive width extends the edit to the canvas right edge,
-        # so inserted components align with the text column.
-        # code_edit = canvas.create_visual_code_edit(QRectF(30, 280, 0, 30))
-        # code_edit.setFocus()
+        self._init_blank_project()
 
     def canvas(self, handler: 'EditorWindow.TabHandler') -> EditionCanvas:
         return self.tabs[handler]
@@ -427,6 +401,36 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
                 background-color: {self.env.theme.colors.tertiary.name()};
                 margin: 4px 8px;
             }}
+
+            /* Dialogs */
+            QDialog {{
+                background-color: {self.env.theme.colors.background.name()};
+                color: {self.env.theme.colors.foreground.name()};
+            }}
+            QDialog QLabel {{
+                color: {self.env.theme.colors.foreground.name()};
+            }}
+            QDialog QLineEdit {{
+                background-color: {self.env.theme.colors.secondary.name()};
+                color: {self.env.theme.colors.foreground.name()};
+                border: 1px solid {self.env.theme.colors.tertiary.name()};
+                border-radius: 4px;
+                padding: 4px;
+            }}
+            QDialog QPushButton {{
+                background-color: {self.env.theme.colors.primary.name()};
+                color: {self.env.theme.colors.foreground.name()};
+                border: 1px solid {self.env.theme.colors.tertiary.name()};
+                border-radius: 4px;
+                padding: 4px 16px;
+                min-width: 80px;
+            }}
+            QDialog QPushButton:hover {{
+                background-color: {self.env.theme.colors.secondary.name()};
+            }}
+            QDialog QPushButton:pressed {{
+                background-color: {self.env.theme.colors.tertiary.name()};
+            }}
         """)
 
     def setup_actions(self) -> void:
@@ -438,11 +442,45 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
         self.action_compile.triggered.connect(self.compile_project)
 
         self.menu_file = self.menubar.addMenu(_('ui.menu.file'))
+
+        self.action_new_project = QAction(_('ui.action.new_project'), self)
+        self.action_new_project.setShortcut(QKeySequence('Ctrl+Shift+N'))
+        self.action_new_project.triggered.connect(self.new_project)
+
+        self.action_open_project = QAction(_('ui.action.open_project'), self)
+        self.action_open_project.setShortcut(QKeySequence('Ctrl+O'))
+        self.action_open_project.triggered.connect(self.open_project)
+
+        self.action_add_script = QAction(_('ui.action.add_script'), self)
+        # triggered carries the checked flag; drop it so add_script gets no name
+        # and asks for one in the dialog
+        self.action_add_script.triggered.connect(lambda _checked: self.add_script())
+
+        self.action_save = QAction(_('ui.action.save'), self)
+        self.action_save.setShortcut(QKeySequence('Ctrl+S'))
+        self.action_save.triggered.connect(self.save_project)
+
+        self.action_save_as = QAction(_('ui.action.save_as'), self)
+        self.action_save_as.setShortcut(QKeySequence('Ctrl+Shift+S'))
+        self.action_save_as.triggered.connect(self.save_project_as)
+
+        self.menu_file.addAction(self.action_new_project)
+        self.menu_file.addAction(self.action_open_project)
+        self.menu_file.addSeparator()
+        self.menu_file.addAction(self.action_save)
+        self.menu_file.addAction(self.action_save_as)
+        self.menu_file.addSeparator()
+        self.menu_file.addAction(self.action_add_script)
+
         self.menu_edit = self.menubar.addMenu(_('ui.menu.edit'))
         self.menu_view = self.menubar.addMenu(_('ui.menu.view'))
         self.menu_code = self.menubar.addMenu(_('ui.menu.code'))
         self.menu_code.addAction(self.action_compile)
         self.toolBar.addAction(self.action_compile)
+
+        self.tabWidget_editor.setTabsClosable(True)
+        self.tabWidget_editor.tabCloseRequested.connect(self._on_tab_close_requested)
+        self.tabWidget_editor.currentChanged.connect(self._on_tab_changed)
 
     def compile_project(self) -> void:
         """Build the loaded project and report the outcome: the status bar
@@ -468,6 +506,336 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
         self.dock_build.show()
         self.statusbar.showMessage(
             _('ui.build.success').format('; '.join(str(artifact) for artifact in artifacts)), 8000)
+
+    def _init_blank_project(self) -> void:
+        """Initialize a blank project with default kits and one empty script."""
+        self.env.import_kit(r'kits/cbased')  # C checker; the fluent kit depends on it
+        self.env.import_kit(r'kits/common')
+        self.env.import_kit(r'kits/fluent')  # UDF delegations for the CLK components
+        self._setup_component_palette()
+        project = Project(_('ui.project.default_name'), UDF)
+        self.env.project = project
+        self._current_script = null
+        self._script_handlers.clear()
+        tab = self.create_canvas(_('ui.script.default_name'))
+        canvas = self.canvas(tab)
+        script = project.create_script(
+            _('ui.script.default_name'), 'fluent.translation_unit',
+            self.env.kit_manager, canvas)
+        self._connect_canvas_dirty(canvas, script)
+        canvas.add_interface(script.tu.interface)
+        self._script_handlers[tab] = script
+        self._current_script = script
+        self._update_title()
+        self._dirty_timer = QTimer(self)
+        self._dirty_timer.timeout.connect(self._sync_dirty_title)
+        self._dirty_timer.start(2000)
+
+    def _setup_component_palette(self) -> void:
+        """Create the component palette dock (left panel) with its filter binding."""
+        self.component_palette = ComponentPalette(self.scrollAreaCompContents)
+        self.compArea_layout.addWidget(self.component_palette)
+        # noinspection bad-argument-type
+        self.lineEdit_component.textChanged.connect(self.component_palette.apply_filter)
+
+    def new_project(self) -> void:
+        """Create a new blank project, prompting to save the current one if dirty."""
+        if self.env.project is not null and self.env.project.is_dirty:
+            reply = QMessageBox.question(
+                self, _('ui.dialog.unsaved_title'),
+                _('ui.dialog.unsaved_new'),
+                QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel)
+            if reply == QMessageBox.StandardButton.Save:
+                self.save_project()
+            elif reply == QMessageBox.StandardButton.Cancel:
+                return
+        for handler in list(self.tabs.keys()):
+            self.tabWidget_editor.removeTab(0)
+        self.tabs.clear()
+        self._script_handlers.clear()
+        project = Project(_('ui.project.default_name'), UDF)
+        self.env.project = project
+        self._current_script = null
+        tab = self.create_canvas(_('ui.script.default_name'))
+        canvas = self.canvas(tab)
+        script = project.create_script(
+            _('ui.script.default_name'), 'fluent.translation_unit',
+            self.env.kit_manager, canvas)
+        self._connect_canvas_dirty(canvas, script)
+        canvas.add_interface(script.tu.interface)
+        self._script_handlers[tab] = script
+        self._current_script = script
+        self._update_title()
+
+    def open_project(self) -> void:
+        """Open an existing .ecproj project file, replacing the current project."""
+        if self.env.project is not null and self.env.project.is_dirty:
+            reply = QMessageBox.question(
+                self, _('ui.dialog.unsaved_title'),
+                _('ui.dialog.unsaved_open'),
+                QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel)
+            if reply == QMessageBox.StandardButton.Save:
+                self.save_project()
+            elif reply == QMessageBox.StandardButton.Cancel:
+                return
+        path, _filter = QFileDialog.getOpenFileName(
+            self, _('ui.dialog.open_project'), '',
+            _('ui.dialog.ecproj_filter'))
+        if not path:
+            return
+        try:
+            with open(path, 'r', encoding='utf-8') as file:
+                data = json.load(file)
+            if not isinstance(data, dict):
+                raise ValueError('Invalid project file')
+            project = Project(data['name'], deserialize(SupportedLanguage, data['target_lang']))
+            project.path = path
+            project.required_kits = data.get('required_kits', [])
+            project.c_standard = data.get('c_standard', 'c99')
+        except Exception as e:
+            QMessageBox.critical(self, _('ui.dialog.open_failed'), str(e))
+            return
+        for handler in list(self.tabs.keys()):
+            self.tabWidget_editor.removeTab(0)
+        self.tabs.clear()
+        self._script_handlers.clear()
+        self.env.project = project
+        self._current_script = null
+        for script_data in data.get('scripts', []):
+            tab = self.create_canvas(script_data.get('display_name', 'untitled'))
+            canvas = self.canvas(tab)
+            script = Script.restore(script_data, self.env.kit_manager, canvas)
+            project.scripts.append(script)
+            self._connect_canvas_dirty(canvas, script)
+            canvas.add_interface(script.tu.interface)
+            self._script_handlers[tab] = script
+        if project.scripts:
+            self._current_script = project.scripts[0]
+        project.clear_dirty()
+        self._update_title()
+
+    def save_project(self) -> void:
+        """Save the project: every unsaved tab asks whether it should be saved
+        (saving a script without a path opens the file dialog first); the
+        project archive is written afterwards. The archive itself goes through
+        Save As while the project has no path yet."""
+        if self.env.project is null:
+            return
+        if self.env.project.path is null:
+            self.save_project_as()
+            return
+        if not self._name_untitled_scripts():
+            return  # The user canceled the naming: the save aborts
+        skipped = self._confirm_script_saves()
+        if skipped is null:
+            return  # The user canceled the whole save
+        try:
+            self.env.project.save(self.env.project.path)
+        except Exception as e:
+            QMessageBox.critical(self, _('ui.dialog.save_failed'), str(e))
+            return
+        # The archive persisted the skipped scripts too, but their changes were
+        # deliberately not saved: keep them dirty so the state stays honest
+        for script in skipped:
+            script.mark_dirty()
+        self._update_title()
+
+    def save_project_as(self) -> void:
+        """Save the project to a user-chosen .ecproj file path."""
+        if self.env.project is null:
+            return
+        path, _filter = QFileDialog.getSaveFileName(
+            self, _('ui.dialog.save_as'), '',
+            _('ui.dialog.ecproj_filter'))
+        if not path:
+            return
+        if not path.endswith(Project.Extension):
+            path += Project.Extension
+        self.env.project.path = path
+        self.save_project()
+
+    def add_script(self, name: Nullable[string] = null) -> void:
+        """Add a new script to the project with a translation unit root component.
+        Without an explicit name the script starts untitled ('Untitled-N'); saving
+        such a script asks for a file, whose stem becomes the script's name."""
+        if self.env.project is null:
+            return
+        untitled = False
+        if not isinstance(name, str) or not name:
+            name = self._next_untitled_name()
+            untitled = True
+        for existing in self.env.project.scripts:
+            if existing.display_name == name:
+                QMessageBox.warning(self, _('ui.dialog.add_script'), _('ui.dialog.script_exists'))
+                return
+        tab = self.create_canvas(name)
+        canvas = self.canvas(tab)
+        script = self.env.project.create_script(
+            name, 'fluent.translation_unit', self.env.kit_manager, canvas)
+        if untitled:
+            # create_script assigned the placeholder through the display_name
+            # setter, which settles the script; restore the untitled state
+            script.untitled = True
+        self._connect_canvas_dirty(canvas, script)
+        canvas.add_interface(script.tu.interface)
+        self._script_handlers[tab] = script
+        self._current_script = script
+        container: Nullable[QWidget] = canvas
+        while container is not null and not isinstance(container, QScrollArea):
+            container = container.parentWidget()
+        self.tabWidget_editor.setCurrentWidget(container)
+
+    def _next_untitled_name(self) -> string:
+        """The first free 'Untitled-N' display name for a freshly added script."""
+        taken = {script.display_name for script in self.env.project.scripts}
+        number = 1
+        name = f'{_("ui.script.untitled")}-{number}'
+        while name in taken:
+            number += 1
+            name = f'{_("ui.script.untitled")}-{number}'
+        return name
+
+    def _name_untitled_scripts(self) -> bool:
+        """Ask a real name for every untitled script before saving: confirming
+        renames the script (and its tab, which settles the untitled state);
+        canceling aborts and keeps the placeholders. Returns whether every
+        untitled script ended up named."""
+        project = self.env.project
+        assert project is not null
+        for script in project.scripts:
+            if not script.untitled:
+                continue
+            dlg = QInputDialog(self)
+            dlg.setInputMode(QInputDialog.InputMode.TextInput)
+            dlg.setWindowTitle(_('ui.dialog.name_script'))
+            dlg.setLabelText(_('ui.dialog.name_script_prompt').format(script.display_name))
+            ok = dlg.exec() == QDialog.DialogCode.Accepted
+            name = dlg.textValue() if ok else ''
+            if not ok or not name:
+                return False
+            script.display_name = name
+            self._set_tab_title(script, name)
+        return True
+
+    def _confirm_script_saves(self) -> Nullable[IList[Script]]:
+        """Publish one save/discard/cancel dialog per unsaved tab and persist
+        the scripts the user chose to save. Returns the scripts the user chose
+        NOT to save (they stay dirty), or ``null`` when the user canceled the
+        whole save."""
+        project = self.env.project
+        assert project is not null
+        skipped: IList[Script] = []
+        for script in project.scripts:
+            if not script.is_dirty:
+                continue
+            reply = QMessageBox.question(
+                self, _('ui.dialog.unsaved_title'),
+                _('ui.dialog.unsaved_save_script').format(script.display_name),
+                QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel)
+            if reply == QMessageBox.StandardButton.Cancel:
+                return null
+            if reply == QMessageBox.StandardButton.Discard:
+                skipped.append(script)
+                continue
+            if not self._save_script_file(script):
+                return null  # No path chosen (or write failed): abort the save
+        return skipped
+
+    def _save_script_file(self, script: Script) -> bool:
+        """Persist one script to its file: a script without a path opens the
+        save-file dialog first. Returns whether the script ended up saved."""
+        if script.path is null:
+            suggested = f'{script.display_name}{Script.Extension}'
+            path, _filter = QFileDialog.getSaveFileName(
+                self, _('ui.dialog.save_script'), suggested,
+                _('ui.dialog.ecscript_filter'))
+            if not path:
+                return False
+            if not path.endswith(Script.Extension):
+                path += Script.Extension
+            script.path = Path(path)
+        try:
+            script.save(script.path)
+        except Exception as e:
+            QMessageBox.critical(self, _('ui.dialog.save_failed'), str(e))
+            return False
+        if script.untitled:
+            # The file name becomes the script's name: it stops being untitled
+            script.display_name = script.path.stem
+            self._set_tab_title(script, script.display_name)
+        return True
+
+    def _set_tab_title(self, script: Script, title: string) -> void:
+        """Rename the tab hosting the script, keeping it in sync with the
+        script's display name."""
+        for handler, candidate in self._script_handlers.items():
+            if candidate is not script:
+                continue
+            canvas = self.tabs.get(handler, null)
+            if canvas is null:
+                return
+            for index in range(self.tabWidget_editor.count()):
+                container = self.tabWidget_editor.widget(index)
+                if container is not null and container.findChild(EditionCanvas) is canvas:
+                    self.tabWidget_editor.setTabText(index, title)
+                    return
+
+    def _on_tab_changed(self, index: int) -> void:
+        """Update the current script when the user switches tabs."""
+        if index < 0:
+            self._current_script = null
+            return
+        container = self.tabWidget_editor.widget(index)
+        for handler, canvas in self.tabs.items():
+            if canvas is not null:
+                scroll: Nullable[QWidget] = canvas
+                while scroll is not null and not isinstance(scroll, QScrollArea):
+                    scroll = scroll.parentWidget()
+                if scroll == container:
+                    self._current_script = self._script_handlers.get(handler, null)
+                    return
+        self._current_script = null
+
+    def _sync_dirty_title(self) -> void:
+        """Periodic sync: refresh the title bar when the project dirty state changes."""
+        self._update_title()
+
+    def _connect_canvas_dirty(self, canvas: EditionCanvas, script: Script) -> void:
+        """Wire canvas edits to the script's dirty flag: the canvas hosts exactly
+        one script, and its dirtiness surfaces on the project too (see
+        ``Project.is_dirty``). The canvas binds the callback when it creates the
+        script's edit controls, so this must run before the interface is added."""
+        canvas.set_dirty_callback(lambda *_args: script.mark_dirty())
+
+    def _update_title(self) -> void:
+        name = self.env.project.name if self.env.project is not null else _('ui.project.default_name')
+        dirty = self.env.project is not null and self.env.project.is_dirty
+        suffix = ' *' if dirty else ''
+        self.setWindowTitle(f'{name}{suffix} - {_("ui.title_short")}')
+
+    def _on_tab_close_requested(self, index: int) -> void:
+        container = self.tabWidget_editor.widget(index)
+        canvas = container.findChild(EditionCanvas) if container is not null else null
+        if canvas is not null:
+            handler = null
+            for h, c in self.tabs.items():
+                if c == canvas:
+                    handler = h
+                    break
+            script = self._script_handlers.get(handler, null) if handler is not null else null
+            if script is not null and script.is_dirty:
+                reply = QMessageBox.question(
+                    self, _('ui.dialog.unsaved_title'),
+                    _('ui.dialog.unsaved_close'),
+                    QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel)
+                if reply == QMessageBox.StandardButton.Save:
+                    self.save_project()
+                elif reply == QMessageBox.StandardButton.Cancel:
+                    return
+            if handler is not null and handler in self._script_handlers:
+                del self._script_handlers[handler]
+            self.remove_canvas(canvas)
+        self.tabWidget_editor.removeTab(index)
 
     def setup(self) -> void:
         # Setup graphic properties
@@ -508,4 +876,16 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
         return handler
 
     def remove_canvas(self, canvas: EditionCanvas) -> void:
-        pass
+        key = null
+        for k, v in self.tabs.items():
+            if v == canvas:
+                key = k
+                break
+        if key is null:
+            raise KeyError('No such canvas to unregister')
+        self.tabs.pop(key)
+
+    @property
+    def script(self) -> Nullable[Script]:
+        """The currently active script (backward-compatible access for probes)."""
+        return self._current_script

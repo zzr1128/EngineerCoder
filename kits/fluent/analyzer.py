@@ -49,7 +49,6 @@ from core.component import Component, ComponentMetadata
 from core.environment import Environment
 from core.kit import KitManager
 from kits.fluent.localization import _
-from kits.fluent.udf import _Declaration
 
 # Descriptions of the introduced variables, shown in the popup detail pane
 lt_local_var: Final[string] = _('desc_local_var')

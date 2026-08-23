@@ -223,6 +223,7 @@ class EditionCanvas(QWidget, IComponentGraphics):
         self.components: IList[IComponentInterface] = []
         self.interface_occupations: IDictionary[IComponentInterface, float] = {}
         self._content_height: int = 0  # Height needed to show every widget (drives scrolling)
+        self._dirty_callback: Nullable[callable] = None
 
     def add_interface(self, component: IComponentInterface, right_occupation: int | float = 0.) -> void:
         self.components.append(component)
@@ -231,6 +232,9 @@ class EditionCanvas(QWidget, IComponentGraphics):
     def remove_interface(self, component: IComponentInterface) -> void:
         self.components.remove(component)
         self.interface_occupations.pop(component, null)
+
+    def set_dirty_callback(self, callback: callable) -> void:
+        self._dirty_callback = callback
 
     def paintEvent(self, event: QPaintEvent, /) -> null:
         # When interface updates, remember to update in resizeEvent
@@ -610,6 +614,8 @@ class EditionCanvas(QWidget, IComponentGraphics):
         edit.fitSize()
         # Growing/shrinking edits change the height needed by the canvas contents
         edit.layoutSpaceChanged.connect(self._update_extent)
+        if self._dirty_callback is not None:
+            edit.document().contentsChange.connect(self._dirty_callback)
         edit.show()  # Widgets created after the canvas is shown stay hidden unless shown explicitly
         return edit
 

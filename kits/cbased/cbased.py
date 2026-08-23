@@ -2,7 +2,7 @@
 
 from alias import *
 from core.kit import Kit, KitMetadata
-from core.meta import Version, AuthorInfo
+from core.meta import AuthorInfo, Version
 
 # The C-based kit contributes no components and no target language of its own:
 # it is the shared C-language foundation other kits depend on (the fluent kit

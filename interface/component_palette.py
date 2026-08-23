@@ -18,8 +18,8 @@ from PySide6.QtGui import QDrag, QMouseEvent
 from PySide6.QtWidgets import QApplication, QLabel, QVBoxLayout, QWidget
 
 from alias import *
-from interface.visual_code_edit import VisualCodeEdit
 from core.kit import KitManager
+from interface.visual_code_edit import VisualCodeEdit
 
 
 class _PaletteEntry(QLabel):
