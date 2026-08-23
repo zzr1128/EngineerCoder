@@ -1,0 +1,39 @@
+{
+    "name": "未命名",
+    "required_kits": [],
+    "target_lang": {
+        "name": "Ansys Fluent UDF",
+        "id": "udf",
+        "description": "User-defined function language of Ansys Fluent, a dialect of C",
+        "extension": "c"
+    },
+    "scripts": [
+        {
+            "path": null,
+            "display_name": "main",
+            "component": {
+                "name": "fluent.translation_unit",
+                "data": {
+                    "body": {
+                        "text": "",
+                        "components": []
+                    }
+                }
+            }
+        },
+        {
+            "path": null,
+            "display_name": "1111111",
+            "component": {
+                "name": "fluent.translation_unit",
+                "data": {
+                    "body": {
+                        "text": "",
+                        "components": []
+                    }
+                }
+            }
+        }
+    ],
+    "c_standard": "c99"
+}
