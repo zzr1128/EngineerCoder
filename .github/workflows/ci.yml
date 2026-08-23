@@ -22,7 +22,8 @@ jobs:
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             BASE="origin/${{ github.base_ref }}"
           else
-            BASE="HEAD~1"
+            BASE="${{ github.event.before }}"
+            git rev-parse --verify --quiet "$BASE" || BASE="HEAD~1"
             git rev-parse --verify --quiet "$BASE" || BASE=""
           fi
           if [ -n "$BASE" ]; then
@@ -61,7 +62,8 @@ jobs:
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             BASE="origin/${{ github.base_ref }}"
           else
-            BASE="HEAD~1"
+            BASE="${{ github.event.before }}"
+            git rev-parse --verify --quiet "$BASE" || BASE="HEAD~1"
             git rev-parse --verify --quiet "$BASE" || BASE=""
           fi
           status=0
@@ -113,6 +115,7 @@ jobs:
     name: Regression (sdk/run_all_checks.py)
     needs: [lint, syntax]
     runs-on: windows-latest
+    timeout-minutes: 15
     env:
       QT_QPA_PLATFORM: offscreen
       PYTHONIOENCODING: utf-8
@@ -133,6 +136,7 @@ jobs:
     name: Smoke test (app boot)
     needs: [lint, syntax]
     runs-on: windows-latest
+    timeout-minutes: 5
     env:
       QT_QPA_PLATFORM: offscreen
       PYTHONIOENCODING: utf-8

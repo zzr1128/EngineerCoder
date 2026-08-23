@@ -13,30 +13,74 @@ the complete name of the component in ``VisualCodeEdit.ComponentMime`` and the
 edit's drop handler performs the insertion (subject to its filter criteria).
 """
 
-from PySide6.QtCore import QMimeData, QPoint, Qt
-from PySide6.QtGui import QDrag, QMouseEvent
-from PySide6.QtWidgets import QApplication, QLabel, QVBoxLayout, QWidget
+from PySide6.QtCore import QMimeData, QPoint, QSize, Qt
+from PySide6.QtGui import QDrag, QIcon, QMouseEvent
+from PySide6.QtWidgets import QApplication, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from alias import *
-from core.kit import KitManager
+from core.kit import Kit, KitManager
+from core.environment import Environment
 from interface.visual_code_edit import VisualCodeEdit
 
+# Size of the glyph an entry shows in front of its component name
+_PALETTE_ICON_SIZE: Final[QSize] = QSize(24, 24)
 
-class _PaletteEntry(QLabel):
-    """A draggable entry of the palette: the drag carries the complete name of
-    the component the entry stands for (see ``VisualCodeEdit.ComponentMime``)."""
+
+def _entry_icon(kit: Kit, meta: Any) -> Nullable[QIcon]:
+    """
+    :param kit: the kit the component belongs to
+    :param meta: metadata of the component
+    :return: the theme-aware icon the component declares for its palette entry
+        ('images/<theme>/<icon>' inside the kit package), or null when it
+        declares none or the glyph file is unavailable
+    """
+    if not meta.icon or kit.directory is null:
+        return null
+    # noinspection broad-exception
+    try:
+        theme_name = Environment.instance().theme.name.lower()
+    except Exception:
+        theme_name = 'light'
+    path = kit.directory / 'images' / theme_name / meta.icon
+    return QIcon(str(path)) if path.is_file() else null
+
+
+class _PaletteEntry(QWidget):
+    """A draggable entry of the palette: the component name, optionally preceded
+    by the icon its metadata declares (see ``ComponentMetadata.icon``). The drag
+    carries the complete name of the component the entry stands for (see
+    ``VisualCodeEdit.ComponentMime``)."""
 
     def __init__(self, display_name: string, description: string,
-                 component_name: string, keyword: string):
-        super().__init__(display_name)
+                 component_name: string, keyword: string,
+                 icon: Nullable[QIcon] = null):
+        super().__init__()
         self.component_name: Final[string] = component_name
         self.keyword: Final[string] = keyword
+        self._display_name: Final[string] = display_name
         self.setToolTip(f'{description}\n({keyword})' if description else keyword)
         self.setCursor(Qt.CursorShape.OpenHandCursor)
         self._press_position: Nullable[QPoint] = null
         # Whether the entry matches the current filter text; the entry stays
         # visible only when it matches and its section is expanded
         self._match: bool = True
+        # A plain QWidget paints its stylesheet background only with the styled
+        # background attribute on (the QLabel the entry used to be did it for free)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(8, 4, 8, 4)  # Mirrors the stylesheet padding
+        layout.setSpacing(6)
+        if icon is not null and not icon.isNull():
+            glyph = QLabel(self)
+            glyph.setPixmap(icon.pixmap(_PALETTE_ICON_SIZE))
+            layout.addWidget(glyph, 0, Qt.AlignmentFlag.AlignVCenter)
+        label = QLabel(display_name, self)
+        layout.addWidget(label)
+        layout.addStretch(1)
+
+    def text(self) -> string:
+        """The component name the entry shows (the filter matches against it)."""
+        return self._display_name
 
     def mousePressEvent(self, event: QMouseEvent, /) -> void:
         if event.button() == Qt.MouseButton.LeftButton:
@@ -138,7 +182,8 @@ class ComponentPalette(QWidget):
                 if keyword is null:
                     continue
                 grouped.setdefault(meta.group, []).append(
-                    _PaletteEntry(meta.display_name, meta.description, name, keyword))
+                    _PaletteEntry(meta.display_name, meta.description, name, keyword,
+                                  _entry_icon(kit, meta)))
             if not grouped:
                 continue
             if not kit.palette_groups or list(grouped) == ['']:

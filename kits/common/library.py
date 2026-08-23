@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
-from dataclasses import dataclass
 import enum
+from dataclasses import dataclass
 from math import ceil
 
 from PySide6.QtCore import QRectF, QSizeF

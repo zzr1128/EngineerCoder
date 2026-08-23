@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 
-from alias import *
 from dataclasses import dataclass
+
+from alias import *
 
 
 @final

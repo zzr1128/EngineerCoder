@@ -4,8 +4,8 @@ import enum
 from pathlib import Path
 
 from alias import *
-from path import BASE_DIR
 from core.localization import _
+from path import BASE_DIR
 
 
 @final

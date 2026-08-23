@@ -43,8 +43,14 @@ from core.kit import KitManager
 from kits.common.library import CLLibrary
 from kits.fluent.analyzer import register_context_completion
 from kits.fluent.fluent import UDF, fluent
-from kits.fluent.general import (CEndMacroStatement, CFluentMacro, CMacroStatement,
-                                  CReturnMacro, CSetValueStatement, MacroArgument)
+from kits.fluent.general import (
+    CEndMacroStatement,
+    CFluentMacro,
+    CMacroStatement,
+    CReturnMacro,
+    CSetValueStatement,
+    MacroArgument,
+)
 from kits.fluent.localization import _
 
 
@@ -111,7 +117,9 @@ class CSource(CReturnMacro):
         not end with a return statement already (the "end DEFINE_SOURCE"
         statement supplies it).
         """
-        from kits.fluent import udf  # Deferred: udf.py and model.py share the kit entry chain
+        from kits.fluent import (
+            udf,  # Deferred: udf.py and model.py share the kit entry chain
+        )
 
         require_member(data, 'name', 'args', 'body')
         require_type(data['name'], string, 'name')
@@ -214,7 +222,9 @@ class CSetSourceDiff(CMacroStatement):
 
     @classmethod
     def render(cls, data: IDictionary[string, Any], builder: Compiler) -> string:
-        from kits.fluent import udf  # Deferred: udf.py and model.py share the kit entry chain
+        from kits.fluent import (
+            udf,  # Deferred: udf.py and model.py share the kit entry chain
+        )
 
         cls._require_context(builder)
         require_member(data, 'derivative')

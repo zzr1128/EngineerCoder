@@ -317,3 +317,119 @@ msgstr "当前没有已导入的组件库。"
 #: interface/editor.py
 msgid "ui.action.properties"
 msgstr "项目属性..."
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.title"
+msgstr "首选项"
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.cat.appearance"
+msgstr "外观"
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.cat.editor"
+msgstr "编辑器"
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.theme"
+msgstr "主题："
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.language"
+msgstr "语言："
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.font_size"
+msgstr "字体大小："
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.comp_list_width"
+msgstr "补全列表宽度："
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.comp_detail_width"
+msgstr "补全详情宽度："
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.comp_max_height"
+msgstr "补全最大高度："
+
+#: interface/editor.py
+msgid "ui.action.preferences"
+msgstr "首选项..."
+
+#: interface/editor.py
+msgid "ui.prefs.lang_restart"
+msgstr "语言变更将在重启后完全生效。"
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.colors.section"
+msgstr "颜色"
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.color.background"
+msgstr "背景色："
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.color.primary"
+msgstr "主色："
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.color.secondary"
+msgstr "辅色："
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.color.tertiary"
+msgstr "第三色："
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.color.side"
+msgstr "侧栏色："
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.color.foreground"
+msgstr "前景色："
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.color.selected"
+msgstr "选中色："
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.palette.section"
+msgstr "组件调色板"
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.palette.edit"
+msgstr "编辑颜色"
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.theme.new"
+msgstr "新建"
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.theme.save_as"
+msgstr "另存为"
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.theme.delete"
+msgstr "删除"
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.theme.name_prompt"
+msgstr "请输入主题名称："
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.theme.exists"
+msgstr "同名主题已存在。"
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.theme.saved"
+msgstr "主题已保存。"
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.theme.builtin_nodelete"
+msgstr "无法删除内置主题。"
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.theme.confirm_delete"
+msgstr "确定要删除主题「{0}」吗？"

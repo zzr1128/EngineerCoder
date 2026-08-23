@@ -3,9 +3,16 @@
 import enum
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QPoint, QRect, Qt, QRectF, QPointF
+from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QFontMetricsF
-from PySide6.QtWidgets import QWidget, QLineEdit, QTextEdit, QLabel, QCheckBox, QComboBox
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QLabel,
+    QLineEdit,
+    QTextEdit,
+    QWidget,
+)
 
 from alias import *
 

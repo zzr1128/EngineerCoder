@@ -23,11 +23,12 @@ include = ["core*", "interface*", "kits*"]
 
 [tool.ruff]
 target-version = "py313"
+force-exclude = true
 extend-exclude = [
     "build",
     "__pycache__",
     "kits/cbased/clang",
-    "sdk/_probe_*.py",
+    "sdk",
     "interface/ui_style_editor.py",
 ]
 

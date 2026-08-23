@@ -3,10 +3,27 @@
 from dataclasses import dataclass
 from math import ceil
 
+from graphics import TextMeasure
+from PySide6.QtCore import QLineF, QPoint, QPointF, QRect, QRectF, Qt
+from PySide6.QtGui import (
+    QBrush,
+    QColor,
+    QFont,
+    QPainter,
+    QPainterPath,
+    QPaintEvent,
+    QPen,
+    QResizeEvent,
+)
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QLabel,
+    QLineEdit,
+    QTextEdit,
+    QWidget,
+)
 from shiboken6 import getCppPointer
-from PySide6.QtCore import Qt, QPoint, QRect, QRectF, QPointF, QLineF
-from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QPainterPath, QPaintEvent, QResizeEvent
-from PySide6.QtWidgets import QWidget, QTextEdit, QLineEdit, QLabel, QCheckBox, QComboBox
 
 from alias import *
 from alias import Nullable
@@ -14,7 +31,6 @@ from core.component import IComponentInterface
 from core.environment import Environment
 from core.graphics import IComponentGraphics, WrapMode
 from core.hyper_text_edit import HyperTextEdit
-from graphics import TextMeasure
 from interface.visual_code_edit import VisualCodeEdit
 
 

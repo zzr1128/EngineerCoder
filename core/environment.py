@@ -8,9 +8,11 @@ from core.build import BuildConfig, Builder
 from core.checker import Checker
 from core.completer import Completer, Completion
 from core.kit import Kit, KitManager
-from core.localization import language
-from core.meta import Version, SupportedLanguage
+from core.localization import get_language
+from core.meta import SupportedLanguage, Version
+from core.preferences import Preferences
 from core.project import Project
+from core.resource import Resource
 from core.theme import Theme
 
 
@@ -63,8 +65,15 @@ class Environment:
         # created while a kit module was imported), __init__ would run again and
         # wipe the registered kits and completions (same convention as instance)
         self.kit_manager = KitManager.instance()
-        self.local_language = language
-        self.theme = Theme.from_resource('light.json')
+        # Application-wide user preferences (theme, language, editor appearance);
+        # the Settings dialog edits these and persists them to config/preferences.json
+        self.preferences = Preferences()
+        self.local_language = get_language()
+        try:
+            self.theme = Theme.from_resource(str(self.preferences.get('theme')))
+        except Resource.ResourceError:
+            # A misconfigured theme name must not prevent the application from booting
+            self.theme = Theme.from_resource(str(Preferences.Defaults['theme']))
         self.rt: IDictionary[string, Any] = {}
         # Shared registry (see ``_completers``): re-initialization rebinds it, never clears it
         self.completers = Environment._completers

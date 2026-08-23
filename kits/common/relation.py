@@ -20,7 +20,7 @@ from kits.common.localization import _
 @clk.register
 @Component.use__interface
 @ComponentMetadata.create('greater', _('greater_display_name'), _('greater_description'), [],
-                          level=ComponentMetadata.Level.Expression)
+                          level=ComponentMetadata.Level.Expression, icon='greater.svg')
 class CGreater(CBinaryOperator):
     symbol = '>'
 
@@ -28,7 +28,7 @@ class CGreater(CBinaryOperator):
 @clk.register
 @Component.use__interface
 @ComponentMetadata.create('less', _('less_display_name'), _('less_description'), [],
-                          level=ComponentMetadata.Level.Expression)
+                          level=ComponentMetadata.Level.Expression, icon='less.svg')
 class CLess(CBinaryOperator):
     symbol = '<'
 
@@ -36,7 +36,7 @@ class CLess(CBinaryOperator):
 @clk.register
 @Component.use__interface
 @ComponentMetadata.create('greater_equal', _('greater_equal_display_name'), _('greater_equal_description'), [],
-                          level=ComponentMetadata.Level.Expression)
+                          level=ComponentMetadata.Level.Expression, icon='greater_equal.svg')
 class CGreaterEqual(CBinaryOperator):
     symbol = '>='
 
@@ -44,7 +44,7 @@ class CGreaterEqual(CBinaryOperator):
 @clk.register
 @Component.use__interface
 @ComponentMetadata.create('less_equal', _('less_equal_display_name'), _('less_equal_description'), [],
-                          level=ComponentMetadata.Level.Expression)
+                          level=ComponentMetadata.Level.Expression, icon='less_equal.svg')
 class CLessEqual(CBinaryOperator):
     symbol = '<='
 
@@ -52,7 +52,7 @@ class CLessEqual(CBinaryOperator):
 @clk.register
 @Component.use__interface
 @ComponentMetadata.create('equal', _('equal_display_name'), _('equal_description'), [],
-                          level=ComponentMetadata.Level.Expression)
+                          level=ComponentMetadata.Level.Expression, icon='equal.svg')
 class CEqual(CBinaryOperator):
     symbol = '=='
 
@@ -60,6 +60,6 @@ class CEqual(CBinaryOperator):
 @clk.register
 @Component.use__interface
 @ComponentMetadata.create('not_equal', _('not_equal_display_name'), _('not_equal_description'), [],
-                          level=ComponentMetadata.Level.Expression)
+                          level=ComponentMetadata.Level.Expression, icon='not_equal.svg')
 class CNotEqual(CBinaryOperator):
     symbol = '!='

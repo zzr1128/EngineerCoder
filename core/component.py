@@ -142,17 +142,21 @@ class ComponentMetadata:
     # Palette group the component belongs to (localized display name of the
     # group, e.g. "cell"); empty keeps the component ungrouped in the palette
     group: string = ''
+    # Icon file the palette shows in front of the entry, relative to the kit's
+    # ``images/<theme>`` directory (e.g. 'plus.svg'); empty shows no icon
+    icon: string = ''
 
     @staticmethod
     def create(name: string, display_name: string, description: string, languages: IList[SupportedLanguage],
-               level: int = Level.Zero, kind: 'ComponentMetadata.Kind' = Kind.Builtin) -> Callable[[T], T]:
+               level: int = Level.Zero, kind: 'ComponentMetadata.Kind' = Kind.Builtin,
+               icon: string = '') -> Callable[[T], T]:
         def decorator(cls: T) -> T:
             if hasattr(cls, 'meta') and not getattr(cls.meta, '__isabstractmethod__', False):
                 raise TypeError(f'Component "{cls}" already has metadata')
             meta = ComponentMetadata(name=name, display_name=display_name, description=description,
                                      component_type=cls,
                                      languages=languages, delegations=ComponentMetadata.Delegation(),
-                                     level=level, kind=kind)
+                                     level=level, kind=kind, icon=icon)
             setattr(cls, '_meta', meta)
             return Component.use__meta(cls)
         return decorator

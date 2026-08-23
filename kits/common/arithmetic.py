@@ -7,8 +7,8 @@ from PySide6.QtWidgets import QWidget
 from alias import *
 from core.component import Component, ComponentMetadata, IComponentInterface
 from core.graphics import IComponentGraphics
-from kits.common.library import CLLibrary
 from kits.common.clk import clk
+from kits.common.library import CLLibrary
 from kits.common.localization import _
 
 
@@ -103,7 +103,7 @@ class CArithmeticOperator(CBinaryOperator):
 @clk.register
 @Component.use__interface
 @ComponentMetadata.create('plus', _('plus_display_name'), _('plus_description'), [],
-                          level=ComponentMetadata.Level.Expression)
+                          level=ComponentMetadata.Level.Expression, icon='plus.svg')
 class CPlus(CArithmeticOperator):
     symbol = '+'
 
@@ -111,7 +111,7 @@ class CPlus(CArithmeticOperator):
 @clk.register
 @Component.use__interface
 @ComponentMetadata.create('minus', _('minus_display_name'), _('minus_description'), [],
-                          level=ComponentMetadata.Level.Expression)
+                          level=ComponentMetadata.Level.Expression, icon='minus.svg')
 class CMinus(CArithmeticOperator):
     symbol = '-'
 
@@ -119,7 +119,7 @@ class CMinus(CArithmeticOperator):
 @clk.register
 @Component.use__interface
 @ComponentMetadata.create('multiply', _('multiply_display_name'), _('multiply_description'), [],
-                          level=ComponentMetadata.Level.Expression)
+                          level=ComponentMetadata.Level.Expression, icon='multiply.svg')
 class CMultiply(CArithmeticOperator):
     symbol = '*'
 
@@ -127,7 +127,7 @@ class CMultiply(CArithmeticOperator):
 @clk.register
 @Component.use__interface
 @ComponentMetadata.create('divide', _('divide_display_name'), _('divide_description'), [],
-                          level=ComponentMetadata.Level.Expression)
+                          level=ComponentMetadata.Level.Expression, icon='divide.svg')
 class CDivide(CArithmeticOperator):
     symbol = '/'
 
@@ -135,6 +135,6 @@ class CDivide(CArithmeticOperator):
 @clk.register
 @Component.use__interface
 @ComponentMetadata.create('modulus', _('modulus_display_name'), _('modulus_description'), [],
-                          level=ComponentMetadata.Level.Expression)
+                          level=ComponentMetadata.Level.Expression, icon='modulus.svg')
 class CModulus(CArithmeticOperator):
     symbol = '%'

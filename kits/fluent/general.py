@@ -311,7 +311,9 @@ class CFluentMacro(Component, abstract):
         The UDF convention requires every macro parameter to stay on the same
         line as the macro name, hence the header is always a single line.
         """
-        from kits.fluent import udf  # Deferred: udf.py and general.py share the kit entry chain
+        from kits.fluent import (
+            udf,  # Deferred: udf.py and general.py share the kit entry chain
+        )
 
         require_member(data, 'name', 'args', 'body')
         require_type(data['name'], string, 'name')
@@ -386,7 +388,9 @@ class CReturnMacro(CFluentMacro, abstract):
         which a zero-initializing declaration introduces at the body top. The
         body renders under a context providing the value's role.
         """
-        from kits.fluent import udf  # Deferred: udf.py and general.py share the kit entry chain
+        from kits.fluent import (
+            udf,  # Deferred: udf.py and general.py share the kit entry chain
+        )
 
         require_member(data, 'name', 'args', 'body')
         require_type(data['name'], string, 'name')
@@ -533,7 +537,9 @@ class CMacroStatement(Component, abstract):
             provides not every role the statement requires (the statement sits
             outside the body it belongs to)
         """
-        from kits.fluent import udf  # Deferred: udf.py and general.py share the kit entry chain
+        from kits.fluent import (
+            udf,  # Deferred: udf.py and general.py share the kit entry chain
+        )
 
         if any(not udf.context_role(builder, role) for role in cls.required_roles()):
             raise Compiler.CompileError(Compiler.B1006,
@@ -600,7 +606,9 @@ class CSetValueStatement(CMacroStatement, abstract):
 
     @classmethod
     def render(cls, data: IDictionary[string, Any], builder: Compiler) -> string:
-        from kits.fluent import udf  # Deferred: udf.py and general.py share the kit entry chain
+        from kits.fluent import (
+            udf,  # Deferred: udf.py and general.py share the kit entry chain
+        )
 
         cls._require_context(builder)
         require_member(data, 'value')
@@ -624,7 +632,9 @@ class CEndMacroStatement(CMacroStatement, abstract):
 
     @classmethod
     def render(cls, data: IDictionary[string, Any], builder: Compiler) -> string:
-        from kits.fluent import udf  # Deferred: udf.py and general.py share the kit entry chain
+        from kits.fluent import (
+            udf,  # Deferred: udf.py and general.py share the kit entry chain
+        )
 
         maybe_unused(data)
         cls._require_context(builder)
@@ -831,7 +841,9 @@ class CTranslationUnit(Component):
         followed by the rendered contents of the unit (macros and free C),
         preserving their order in the document.
         """
-        from kits.fluent import udf  # Deferred: udf.py and general.py share the kit entry chain
+        from kits.fluent import (
+            udf,  # Deferred: udf.py and general.py share the kit entry chain
+        )
 
         data = serialize(self._interface.edit_body)
         # Reject illegal identifiers before any rendering happens, so the build

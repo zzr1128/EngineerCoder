@@ -1,16 +1,21 @@
 # -*- coding: utf-8 -*-
 
+import importlib.util
+import sys
 from dataclasses import dataclass
 from enum import IntEnum
-import importlib.util
 from pathlib import Path
-import sys
 from types import ModuleType
 
 from alias import *
-from core.component import Component, ComponentMetadata, ComponentDelegation, ComponentTy
+from core.component import (
+    Component,
+    ComponentDelegation,
+    ComponentMetadata,
+    ComponentTy,
+)
 from core.graphics import IComponentGraphics
-from core.meta import Version, SupportedLanguage, AuthorInfo
+from core.meta import AuthorInfo, SupportedLanguage, Version
 
 
 @final
@@ -163,6 +168,17 @@ class Kit:
         if name not in self.components:
             raise Kit.ComponentNotFoundError(self.meta.name, name)
         del self.components[name]
+
+    @property
+    def directory(self) -> Nullable[Path]:
+        """Filesystem directory of the kit package (the home of kit-local
+        resources such as palette icons); null for kits that were not imported
+        from a package (see ``create_empty``)."""
+        if self.module_key is null:
+            return null
+        module = sys.modules.get(self.module_key, null)
+        file = getattr(module, '__file__', null) if module is not null else null
+        return Path(file).parent if file else null
 
     @staticmethod
     def create_empty(meta: KitMetadata) -> 'Kit':

@@ -317,3 +317,119 @@ msgstr "No kits are currently imported."
 #: interface/editor.py
 msgid "ui.action.properties"
 msgstr "Project Properties..."
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.title"
+msgstr "Preferences"
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.cat.appearance"
+msgstr "Appearance"
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.cat.editor"
+msgstr "Editor"
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.theme"
+msgstr "Theme:"
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.language"
+msgstr "Language:"
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.font_size"
+msgstr "Font Size:"
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.comp_list_width"
+msgstr "Completion List Width:"
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.comp_detail_width"
+msgstr "Completion Detail Width:"
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.comp_max_height"
+msgstr "Completion Max Height:"
+
+#: interface/editor.py
+msgid "ui.action.preferences"
+msgstr "Preferences..."
+
+#: interface/editor.py
+msgid "ui.prefs.lang_restart"
+msgstr "Language changes will take full effect after restart."
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.colors.section"
+msgstr "Colors"
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.color.background"
+msgstr "Background:"
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.color.primary"
+msgstr "Primary:"
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.color.secondary"
+msgstr "Secondary:"
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.color.tertiary"
+msgstr "Tertiary:"
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.color.side"
+msgstr "Side:"
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.color.foreground"
+msgstr "Foreground:"
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.color.selected"
+msgstr "Selected:"
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.palette.section"
+msgstr "Components Palette"
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.palette.edit"
+msgstr "Edit Color"
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.theme.new"
+msgstr "New"
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.theme.save_as"
+msgstr "Save As"
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.theme.delete"
+msgstr "Delete"
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.theme.name_prompt"
+msgstr "Enter theme name:"
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.theme.exists"
+msgstr "A theme with this name already exists."
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.theme.saved"
+msgstr "Theme saved."
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.theme.builtin_nodelete"
+msgstr "Cannot delete built-in theme."
+
+#: interface/preferences_dialog.py
+msgid "ui.prefs.theme.confirm_delete"
+msgstr "Delete theme '{0}'?"

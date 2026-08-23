@@ -2,7 +2,7 @@
 
 from alias import *
 from core.kit import Kit, KitMetadata
-from core.meta import Version, AuthorInfo, SupportedLanguage
+from core.meta import AuthorInfo, SupportedLanguage, Version
 
 # UDF (user-defined function): the C dialect Ansys Fluent interprets for user customization;
 # generated source files use the C extension

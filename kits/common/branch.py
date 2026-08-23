@@ -90,7 +90,7 @@ class CBranch(Component):
                 graphics: IComponentGraphics) -> Self:
         """
         Restore a branch from its serialization.
-    
+
         The constructor reconstructs the interface (whose nested edits are empty);
         the archived contents are then loaded into those edits in place, since
         their references are held by the interface layout.

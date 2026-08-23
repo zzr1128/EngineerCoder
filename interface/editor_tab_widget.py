@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from PySide6.QtWidgets import QWidget, QTabWidget
+from PySide6.QtWidgets import QTabWidget, QWidget
 
 from alias import *
 from interface.edition_canvas import EditionCanvas

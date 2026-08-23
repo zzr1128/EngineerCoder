@@ -4,23 +4,25 @@ import json
 from pathlib import Path
 
 from PySide6.QtCore import *
-from PySide6.QtWidgets import *
 from PySide6.QtGui import *
+from PySide6.QtWidgets import *
 
 from alias import *
 from alias import Nullable
 from core.build import Builder
-from core.localization import _
-from core.script import Script
 from core.environment import Environment
+from core.localization import _, set_language
 from core.meta import SupportedLanguage
 from core.project import Project
 from core.resource import Resource
-from kits.fluent.fluent import UDF
-from interface.ui_style_editor import Ui_EditorWindow
-from interface.edition_canvas import EditionCanvas
+from core.script import Script
+from core.theme import Theme
 from interface.component_palette import ComponentPalette
+from interface.edition_canvas import EditionCanvas
+from interface.preferences_dialog import PreferencesDialog
 from interface.project_properties_dialog import ProjectPropertiesDialog
+from interface.ui_style_editor import Ui_EditorWindow
+from kits.fluent.fluent import UDF
 
 
 @final
@@ -161,12 +163,12 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
         self.dockWidgetContents_details.setBackgroundColor(self.env.theme.colors.side)
         self.setStyleSheet(f"""
             /* Main Window */
-            QMainWindow {{ 
-                background-color: {self.env.theme.colors.background.name()}; 
+            QMainWindow {{
+                background-color: {self.env.theme.colors.background.name()};
                 color: {self.env.theme.colors.foreground.name()};
             }}
             QWidget#{self.centralwidget.objectName()} {{ background: transparent; }}
-            
+
             /* Tab widget */
             QTabBar::tab {{
                 padding: 6px 14px;
@@ -193,7 +195,7 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
                 border-radius: 6px;
                 color: {self.env.theme.colors.foreground.name()};
             }}
-            
+
             /* Side dock widget */
             QDockWidget {{
                 color: {self.env.theme.colors.foreground.name()};
@@ -207,7 +209,7 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
                 background-color: {self.env.theme.colors.secondary.name()};
                 border-radius: 6px;
             }}
-            
+
             /* Component palette (left dock): draggable entries of the components
                the code completion can insert */
             QLabel#paletteHeader {{
@@ -230,7 +232,7 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
             _PaletteEntry:hover {{
                 background-color: {tp.name()};
             }}
-            
+
             /* Field controls */
             QMainWindow QLineEdit, QMainWindow QTextEdit, QMainWindow HyperTextEdit {{
                 background-color: {self.env.theme.colors.tertiary.name()};
@@ -340,7 +342,7 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
                 border-radius: 6px;
                 background-color: rgba(217, 83, 79, 14%);
             }}
-            
+
             /* Menu bar */
             QMenuBar {{
                 background-color: {self.env.theme.colors.background.name()};
@@ -358,7 +360,7 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
             QMenuBar::item:pressed {{
                 background-color: {tp.name()};
             }}
-            
+
             /* Toolbar */
             QToolBar {{
                 background-color: {self.env.theme.colors.background.name()};
@@ -380,7 +382,7 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
             QToolBar QToolButton:pressed {{
                 background-color: {tp.name()};
             }}
-            
+
             /* Dropdown menus */
             QMenu {{
                 background-color: {self.env.theme.colors.secondary.name()};
@@ -432,6 +434,22 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
             QDialog QPushButton:pressed {{
                 background-color: {self.env.theme.colors.tertiary.name()};
             }}
+            QListWidget#prefsCategoryList {{
+                background-color: {self.env.theme.colors.secondary.name()};
+                border: none;
+                outline: none;
+                color: {self.env.theme.colors.foreground.name()};
+            }}
+            QListWidget#prefsCategoryList::item {{
+                padding: 8px 12px;
+                border-radius: 4px;
+            }}
+            QListWidget#prefsCategoryList::item:selected {{
+                background-color: {self.env.theme.colors.primary.name()};
+            }}
+            QListWidget#prefsCategoryList::item:hover:!selected {{
+                background-color: {tp.name()};
+            }}
         """)
 
     def setup_actions(self) -> void:
@@ -480,6 +498,12 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
         self.menu_file.addAction(self.action_properties)
 
         self.menu_edit = self.menubar.addMenu(_('ui.menu.edit'))
+
+        self.action_preferences = QAction(_('ui.action.preferences'), self)
+        self.action_preferences.setShortcut(QKeySequence('Ctrl+Alt+S'))
+        self.action_preferences.triggered.connect(self.show_preferences)
+        self.menu_edit.addAction(self.action_preferences)
+
         self.menu_view = self.menubar.addMenu(_('ui.menu.view'))
         self.menu_code = self.menubar.addMenu(_('ui.menu.code'))
         self.menu_code.addAction(self.action_compile)
@@ -702,6 +726,103 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
             dlg.apply_to(self.env.project)
             if self.env.project.name != old_name:
                 self._update_title()
+
+    def show_preferences(self) -> void:
+        """Open the preferences dialog and apply changes on accept or apply."""
+        prefs = self.env.preferences
+        theme = self.env.theme
+        current_colors = {
+            'background': theme.colors.background.name(),
+            'primary': theme.colors.primary.name(),
+            'secondary': theme.colors.secondary.name(),
+            'tertiary': theme.colors.tertiary.name(),
+            'side': theme.colors.side.name(),
+            'foreground': theme.colors.foreground.name(),
+            'selected': theme.colors.selected.name(),
+        }
+        current_palette = [[c.name() for c in level] for level in theme.colors.components]
+        dlg = PreferencesDialog(
+            current_theme_name=str(prefs.get('theme')),
+            current_language=self.env.local_language,
+            font_size=int(prefs.get('editor_font_size')),
+            completion_list_width=int(prefs.get('completion_list_width')),
+            completion_detail_width=int(prefs.get('completion_detail_width')),
+            completion_max_height=int(prefs.get('completion_max_height')),
+            current_colors=current_colors,
+            current_palette=current_palette,
+            parent=self)
+        dlg.settings_changed.connect(self._apply_preferences)
+        self._prefs_dialog = dlg
+        try:
+            dlg.exec()
+        finally:
+            self._prefs_dialog = null
+
+    def _apply_preferences(self, changes: IDictionary[string, Any]) -> void:
+        """Apply preference changes: persist, reload theme, switch language, update font."""
+        prefs = self.env.preferences
+
+        theme_name = changes.get('theme')
+        theme_colors = changes.get('theme_colors')
+        theme_palette = changes.get('theme_palette')
+
+        if theme_name and theme_name != str(prefs.get('theme')):
+            try:
+                prefs.set('theme', theme_name)
+                prefs.save()
+                # Reload from disk so the live-preview mutations below never
+                # leak into a cached (possibly stale) theme object
+                Theme._evict_cache(theme_name)
+                self.env.theme = Theme.from_resource(theme_name)
+                self.set_style()
+            except Exception:
+                pass
+
+        # Skip color previews that lag behind the dropdown: applying the
+        # previous theme's colors onto the newly selected theme corrupts it
+        prefs_dialog = getattr(self, '_prefs_dialog', null)
+        combo_theme = prefs_dialog._combo_theme.currentData() \
+            if prefs_dialog is not null else null
+        if combo_theme is not null and theme_name != combo_theme:
+            theme_colors = theme_palette = null
+
+        if (theme_colors or theme_palette) and self.env.theme is not null:
+            from PySide6.QtGui import QColor as _QC
+            tc = self.env.theme.colors
+            if theme_colors:
+                for attr in ('background', 'primary', 'secondary', 'tertiary',
+                             'side', 'foreground', 'selected'):
+                    if attr in theme_colors:
+                        setattr(tc, attr, _QC(theme_colors[attr]))
+            if theme_palette:
+                tc.components = [[_QC(c) for c in row] for row in theme_palette]
+            self.set_style()
+
+        lang = changes.get('language')
+        if lang and lang != self.env.local_language:
+            try:
+                set_language(lang)
+                QMessageBox.information(
+                    self, _('ui.prefs.title'),
+                    _('ui.prefs.lang_restart'))
+            except ValueError:
+                pass
+
+        font_size = changes.get('font_size')
+        if font_size is not None and font_size != prefs.get('editor_font_size'):
+            prefs.set('editor_font_size', font_size)
+            prefs.save()
+            app = QApplication.instance()
+            if app is not null:
+                font = app.font()
+                font.setPointSize(int(font_size))
+                app.setFont(font)
+
+        for key in ('completion_list_width', 'completion_detail_width', 'completion_max_height'):
+            val = changes.get(key)
+            if val is not None and val != prefs.get(key):
+                prefs.set(key, val)
+                prefs.save()
 
     def _next_untitled_name(self) -> string:
         """The first free 'Untitled-N' display name for a freshly added script."""

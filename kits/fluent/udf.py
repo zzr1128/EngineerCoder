@@ -24,7 +24,6 @@ import copy
 import re
 
 from alias import *
-
 from core.build import Compiler
 from core.component import Component, ComponentDelegation, ComponentMetadata
 from core.environment import Environment

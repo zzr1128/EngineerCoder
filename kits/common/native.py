@@ -6,8 +6,8 @@ from PySide6.QtWidgets import QWidget
 from alias import *
 from core.component import Component, ComponentMetadata, IComponentInterface
 from core.graphics import IComponentGraphics
-from kits.common.library import CLLibrary
 from kits.common.clk import clk
+from kits.common.library import CLLibrary
 from kits.common.localization import _
 from kits.common.validation import attach_source_check, attach_source_lint
 

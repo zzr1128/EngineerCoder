@@ -1,16 +1,56 @@
 # -*- coding: utf-8 -*-
 
 import json
-
 from math import ceil
 
-from PySide6.QtCore import QEvent, QMimeData, QObject, Qt, QPoint, QPointF, QRect, QRectF, QSize, QSizeF, QTimer, Signal
-from PySide6.QtGui import (QColor, QDragEnterEvent, QDragMoveEvent, QDropEvent, QFocusEvent, QFont, QFontMetricsF,
-                           QIcon, QKeyEvent, QMouseEvent, QMoveEvent,
-                           QPainter, QPalette, QPixmap, QResizeEvent, QTextCharFormat, QTextCursor, QTextDocument,
-                           QTextFormat)
-from PySide6.QtWidgets import (QApplication, QFrame, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
-                               QStyle, QStyledItemDelegate, QStyleOptionViewItem, QWidget)
+from PySide6.QtCore import (
+    QEvent,
+    QMimeData,
+    QObject,
+    QPoint,
+    QPointF,
+    QRect,
+    QRectF,
+    QSize,
+    QSizeF,
+    Qt,
+    QTimer,
+    Signal,
+)
+from PySide6.QtGui import (
+    QColor,
+    QDragEnterEvent,
+    QDragMoveEvent,
+    QDropEvent,
+    QFocusEvent,
+    QFont,
+    QFontMetricsF,
+    QIcon,
+    QKeyEvent,
+    QMouseEvent,
+    QMoveEvent,
+    QPainter,
+    QPalette,
+    QPixmap,
+    QResizeEvent,
+    QTextCharFormat,
+    QTextCursor,
+    QTextDocument,
+    QTextFormat,
+)
+from PySide6.QtWidgets import (
+    QApplication,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QStyle,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
+    QWidget,
+)
 
 from alias import *
 from alias import Nullable

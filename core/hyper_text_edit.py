@@ -2,14 +2,20 @@
 
 from math import ceil
 
+from graphics import TextMeasure
 from PySide6.QtCore import QEvent, QRect, QRectF, QSizeF, Signal
-from PySide6.QtGui import (QPyTextObject, QTextFormat, QTextDocument, QPainter,
-                           QTextCharFormat, QTextCursor)
-from PySide6.QtWidgets import QWidget, QTextEdit
+from PySide6.QtGui import (
+    QPainter,
+    QPyTextObject,
+    QTextCharFormat,
+    QTextCursor,
+    QTextDocument,
+    QTextFormat,
+)
+from PySide6.QtWidgets import QTextEdit, QWidget
+from treap import NonRotationalTreap
 
 from alias import *
-from graphics import TextMeasure
-from treap import NonRotationalTreap
 
 
 class HyperTextEdit(QTextEdit):

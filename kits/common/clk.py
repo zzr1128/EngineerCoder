@@ -2,7 +2,7 @@
 
 from alias import *
 from core.kit import Kit, KitMetadata
-from core.meta import Version, AuthorInfo
+from core.meta import AuthorInfo, Version
 
 clk = Kit.create_empty(KitMetadata('clk', 'Common Language Kit', 'Kit of common language components and libraries.',
                                    Version(0, 0, 0x01001), [], null, Version(0, 0, 0x01001), [],
