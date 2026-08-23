@@ -128,7 +128,7 @@ def main() -> void:
         print('malformed archive rejection ok')
 
     # 10. the repository's test project loads
-    legacy_project = Project.load(os.path.join(_root, 'test.ecproj'), kit_manager, graphics)
+    legacy_project = Project.load(os.path.join(_root, 'sdk', 'test.ecproj'), kit_manager, graphics)
     assert legacy_project.name == '未命名' and len(legacy_project.scripts) >= 1
     print('repository test project loads ok')
 

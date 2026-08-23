@@ -103,7 +103,7 @@ def main() -> void:
         print('legacy archive compatibility ok')
 
     # 7. the repository's test project loads with a default configuration
-    legacy_project = Project.load(os.path.join(_root, 'test.ecproj'), kit_manager, graphics)
+    legacy_project = Project.load(os.path.join(_root, 'sdk', 'test.ecproj'), kit_manager, graphics)
     assert legacy_project.build_config.target_lang == legacy_project.target_lang
     assert legacy_project.build_config.opt_level == BuildConfig.OptimizationLevel.O0
     print('repository test project ok')
