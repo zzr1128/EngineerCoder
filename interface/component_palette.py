@@ -18,8 +18,8 @@ from PySide6.QtGui import QDrag, QIcon, QMouseEvent
 from PySide6.QtWidgets import QApplication, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from alias import *
-from core.kit import Kit, KitManager
 from core.environment import Environment
+from core.kit import Kit, KitManager
 from interface.visual_code_edit import VisualCodeEdit
 
 # Size of the glyph an entry shows in front of its component name
