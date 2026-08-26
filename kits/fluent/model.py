@@ -57,7 +57,8 @@ from kits.fluent.localization import _
 @fluent.register
 @Component.use__interface
 @ComponentMetadata.create('profile', _('profile_display_name'), _('profile_description'), [UDF],
-                          level=ComponentMetadata.Level.Domain)
+                          level=ComponentMetadata.Level.Domain,
+                          icon='DPMprof.svg')
 class CProfile(CFluentMacro):
     """``DEFINE_PROFILE(name, t, i)``: UDF specifying a boundary condition
     profile; ``t`` names the boundary thread and ``i`` the index that

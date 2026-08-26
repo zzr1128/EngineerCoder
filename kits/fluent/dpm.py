@@ -33,7 +33,8 @@ from kits.fluent.localization import _
 @Component.use__interface
 @ComponentMetadata.create('dpm_injection_init', _('dpm_injection_init_display_name'),
                           _('dpm_injection_init_description'), [UDF],
-                          level=ComponentMetadata.Level.Domain)
+                          level=ComponentMetadata.Level.Domain,
+                          icon='DPMii.svg')
 class CDpmInjectionInit(CFluentMacro):
     """``DEFINE_DPM_INJECTION_INIT(name, I)``: UDF called when a discrete
     phase injection is initialized; ``I`` names the ``Injection *`` parameter
@@ -59,7 +60,8 @@ class CDpmLaw(CFluentMacro):
 @fluent.register
 @Component.use__interface
 @ComponentMetadata.create('dpm_drag', _('dpm_drag_display_name'), _('dpm_drag_description'), [UDF],
-                          level=ComponentMetadata.Level.Domain)
+                          level=ComponentMetadata.Level.Domain,
+                          icon='DPMdf.svg')
 class CDpmDrag(CFluentMacro):
     """``DEFINE_DPM_DRAG(name, p, Re)``: UDF defining a custom drag
     coefficient for discrete phase particles; ``p`` names the tracked particle
@@ -75,7 +77,8 @@ class CDpmDrag(CFluentMacro):
 @fluent.register
 @Component.use__interface
 @ComponentMetadata.create('dpm_body_force', _('dpm_body_force_display_name'), _('dpm_body_force_description'),
-                          [UDF], level=ComponentMetadata.Level.Domain)
+                          [UDF], level=ComponentMetadata.Level.Domain,
+                          icon='DPMvf.svg')
 class CDpmBodyForce(CFluentMacro):
     """``DEFINE_DPM_BODY_FORCE(name, p, mass, F, Fd)``: UDF defining an
     additional body force on discrete phase particles; ``p`` names the tracked
@@ -91,7 +94,8 @@ class CDpmBodyForce(CFluentMacro):
 @fluent.register
 @Component.use__interface
 @ComponentMetadata.create('dpm_source', _('dpm_source_display_name'), _('dpm_source_description'), [UDF],
-                          level=ComponentMetadata.Level.Domain)
+                          level=ComponentMetadata.Level.Domain,
+                          icon='DPMsrc.svg')
 class CDpmSource(CFluentMacro):
     """``DEFINE_DPM_SOURCE(name, cell, thread, S, strength, p)``: UDF adding
     discrete phase source terms to the continuous phase equations; ``cell``
