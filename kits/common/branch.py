@@ -16,7 +16,8 @@ from kits.common.localization import _
 @Component.use__interface
 @ComponentMetadata.create('br', _('display_name'), _('description'), [],
                           level=ComponentMetadata.Level.Statement,
-                          kind=ComponentMetadata.Kind.Builtin)
+                          kind=ComponentMetadata.Kind.Builtin,
+                          icon='branch.svg')
 class CBranch(Component):
     class FBranchInterface(IComponentInterface):
         lt_if: Final[string] = _('label_if')

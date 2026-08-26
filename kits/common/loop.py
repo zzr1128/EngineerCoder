@@ -39,7 +39,8 @@ def counter_name(occupied: ICollection[string]) -> string:
 @Component.use__interface
 @ComponentMetadata.create('loop', _('loop_display_name'), _('loop_description'), [],
                           level=ComponentMetadata.Level.Statement,
-                          kind=ComponentMetadata.Kind.Builtin)
+                          kind=ComponentMetadata.Kind.Builtin,
+                          icon='while.svg')
 class CLoop(Component):
     class FLoopInterface(IComponentInterface):
         lt_while: Final[string] = _('label_while')
@@ -120,7 +121,8 @@ class CLoop(Component):
 @Component.use__interface
 @ComponentMetadata.create('for', _('for_display_name'), _('for_description'), [],
                           level=ComponentMetadata.Level.Statement,
-                          kind=ComponentMetadata.Kind.Builtin)
+                          kind=ComponentMetadata.Kind.Builtin,
+                          icon='for.svg')
 class CFor(Component):
     class FForInterface(IComponentInterface):
         lt_repeat: Final[string] = _('label_repeat')

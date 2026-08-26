@@ -16,7 +16,8 @@ from kits.common.validation import attach_source_check, attach_source_lint
 @Component.use__interface
 @ComponentMetadata.create('native', _('native_display_name'), _('native_description'), [],
                           level=ComponentMetadata.Level.Statement,
-                          kind=ComponentMetadata.Kind.Builtin)
+                          kind=ComponentMetadata.Kind.Builtin,
+                          icon='native-code.svg')
 class CNative(Component):
     class FNativeInterface(IComponentInterface):
         def __init__(self, graphics: IComponentGraphics):

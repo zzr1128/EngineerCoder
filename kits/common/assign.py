@@ -43,7 +43,8 @@ _TYPE_OPTIONS: Final[IDictionary[string, string]] = {
 @clk.register
 @Component.use__interface
 @ComponentMetadata.create('assign', _('assign_display_name'), _('assign_description'), [],
-                          level=ComponentMetadata.Level.Statement)
+                          level=ComponentMetadata.Level.Statement,
+                          icon='assign.svg')
 class CAssign(Component):
     class FAssignInterface(IComponentInterface):
         lt_value_of: Final[string] = _('label_value_of')

@@ -15,7 +15,8 @@ from kits.common.localization import _
 @clk.register
 @Component.use__interface
 @ComponentMetadata.create('field', _('field_display_name'), _('field_description'), [],
-                          level=ComponentMetadata.Level.Expression)
+                          level=ComponentMetadata.Level.Expression,
+                          icon='member.svg')
 class CField(Component):
     class FFieldInterface(IComponentInterface):
         lt_possessive: Final[string] = _('label_possessive')
