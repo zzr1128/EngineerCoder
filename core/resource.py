@@ -6,6 +6,7 @@ from pathlib import Path
 from alias import *
 from core.localization import _
 from path import BASE_DIR
+from core.localization import _
 
 
 @final
