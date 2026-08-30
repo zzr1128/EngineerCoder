@@ -1,0 +1,7 @@
+<svg class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg"
+     width="200" height="200">
+    <path d="M160 352a32 32 0 0 1 32-32h640a32 32 0 0 1 0 64H192a32 32 0 0 1-32-32z m0 320a32 32 0 0 1 32-32h640a32 32 0 0 1 0 64H192a32 32 0 0 1-32-32z"
+          fill="#303030" />
+    <circle cx="416" cy="352" r="96" fill="#303030" />
+    <circle cx="608" cy="672" r="96" fill="#303030" />
+</svg>

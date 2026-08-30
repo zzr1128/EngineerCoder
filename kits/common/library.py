@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
-from dataclasses import dataclass
 import enum
+from dataclasses import dataclass
 from math import ceil
 
 from PySide6.QtCore import QRectF, QSizeF
@@ -41,6 +41,7 @@ class CLLibrary:
             width: float
             height: float
             row_policy: 'CLLibrary.GLinearLayout.ElementRowPolicy'
+            min_width: float = 0.
 
         def __init__(self, *, margin: float = 5., horizonal_padding: float = 5., vertical_padding: float = 10.):
             self.margin: float = margin
@@ -62,18 +63,18 @@ class CLLibrary:
         @overload
         def add_element(self, widget: HyperTextEdit, row_policy: Nullable[ElementRowPolicy] = ElementRowPolicy.Default,
                         width: float | int | null = null, height: float | int | null = null, *,
-                        graphics: Nullable[IComponentGraphics]) -> void:
+                        graphics: Nullable[IComponentGraphics], min_width: float | int | null = null) -> void:
             ...
 
         @overload
         def add_element(self, widget: QWidget, row_policy: Nullable[ElementRowPolicy] = ElementRowPolicy.Default,
                         width: float | int | null = null, height: float | int | null = null, *,
-                        graphics: Nullable[IComponentGraphics] = null) -> void:
+                        graphics: Nullable[IComponentGraphics] = null, min_width: float | int | null = null) -> void:
             ...
 
         def add_element(self, widget: QWidget, row_policy: Nullable[ElementRowPolicy] = ElementRowPolicy.Default,
                         width: float | int | null = null, height: float | int | null = null, *,
-                        graphics: Nullable[IComponentGraphics] = null) -> void:
+                        graphics: Nullable[IComponentGraphics] = null, min_width: float | int | null = null) -> void:
             """
             Add an element to the layout next to existing elements.
             :param widget: the widget to add
@@ -81,10 +82,14 @@ class CLLibrary:
             :param width: declared width of the widget
             :param height: declared width of the widget
             :param graphics: graphics interface (needed if widget is a ``HyperTextEdit``)
+            :param min_width: minimal width of a container-relative (non-positive declared)
+                widget; the stretched width never falls below it, so the element stays usable
+                when the remainder of the row is narrower than it
 
             Parameters ``width`` and ``height`` is **declared**, which means they are not absolutely equal to the real
             size of the widget. Usually, when they are positive, the values equalize to the widget size; otherwise,
-            the values are relative to the parent client rectangle.
+            the values are relative to the parent client rectangle. Specially, when they are null, ``width()`` and
+            ``height()`` of the widget is used.
 
             This triggers invalidation of computed geometries.
 
@@ -98,7 +103,8 @@ class CLLibrary:
             element = CLLibrary.GLinearLayout._Element(widget,
                                                        widget.width() if width is None else round(width),
                                                        widget.height() if height is None else round(height),
-                                                       row_policy)
+                                                       row_policy,
+                                                       0. if min_width is null else round(min_width))
             self.elements.append(element)
             self.invalidate()
 
@@ -140,6 +146,15 @@ class CLLibrary:
             """
             self._valid = False
 
+        def _fill_width(self, element: 'CLLibrary.GLinearLayout._Element',
+                        container: QRectF, cursor: float) -> float:
+            """
+            Width of an element whose declared width is relative to the container: it
+            stretches from the cursor to the right margin of the container, never below
+            the element's minimum width.
+            """
+            return max(element.width + container.width() - cursor - self.margin, element.min_width)
+
         def _compute_geometries(self, container: QRectF | QWidget) -> void:
             if isinstance(container, QWidget):
                 container = QRectF(container.rect())
@@ -152,7 +167,7 @@ class CLLibrary:
             if self.elements:
                 lines.append([])
 
-            for element in self.elements:
+            for index, element in enumerate(self.elements):
                 try:
                     if (not (element.row_policy & CLLibrary.GLinearLayout.ElementRowPolicy.ReqCclBrk) and
                         (((element.row_policy & CLLibrary.GLinearLayout.ElementRowPolicy.ReqBrkPre)  # Current policy
@@ -163,7 +178,7 @@ class CLLibrary:
                             width = self.margin
                             # Before the element
                             if element.width <= CLLibrary.GLinearLayout.FillWidth:
-                                element_width = max(element.width + container.width() - width - self.margin, 0.)
+                                element_width = self._fill_width(element, container, width)
                                 element.widget.setFixedWidth(ceil(element_width))
                             else:
                                 element_width = element.width
@@ -171,13 +186,24 @@ class CLLibrary:
 
                     # Before the element
                     if element.width <= CLLibrary.GLinearLayout.FillWidth:
-                        element_width = max(element.width + container.width() - width - self.margin, 0.)
+                        element_width = self._fill_width(element, container, width)
                         element.widget.setFixedWidth(ceil(element_width))
                     else:
                         element_width = element.width
 
+                    # Elements that cancel the break before themselves (NoBreak) glue to
+                    # this element: decide the wrap over the whole group, so the glued
+                    # elements are never stranded on another row than this element
+                    group_width = element_width
+                    for successor in self.elements[index + 1:]:
+                        if successor.row_policy & CLLibrary.GLinearLayout.ElementRowPolicy.ReqCclBrk \
+                                and successor.width > CLLibrary.GLinearLayout.FillWidth:
+                            group_width += successor.width + self.horizonal_padding
+                        else:
+                            break
+
                     if (not (element.row_policy & CLLibrary.GLinearLayout.ElementRowPolicy.ReqCclBrk) and
-                            (lines[-1] and width + element_width + self.margin + self.horizonal_padding > container.width()) and width > 0):  # Beyond the width limit
+                            (lines[-1] and width + group_width + self.margin + self.horizonal_padding > container.width()) and width > 0):  # Beyond the width limit
                         lines.append([])
                         width = self.margin
                 except AssertionError:
@@ -198,12 +224,15 @@ class CLLibrary:
             box_width = 0.
             for line in lines:
                 width = self.margin
-                line_height = 0.
+                line_height = max((element.height for element in line), default=0.)
                 for element in line:
-                    element_width = container.width() - width if element.width <= CLLibrary.GLinearLayout.FillWidth else element.width
-                    self._geometries.append(QRectF(width, height, element_width, element.height))
+                    if element.width <= CLLibrary.GLinearLayout.FillWidth:
+                        element_width = self._fill_width(element, container, width)
+                    else:
+                        element_width = element.width
+                    self._geometries.append(QRectF(width, height + (line_height - element.height) / 2,
+                                                   element_width, element.height))
                     width += element_width + self.horizonal_padding
-                    line_height = max(line_height, element.height)
                 height += line_height + self.vertical_padding
                 box_width = max(box_width, width + self.margin - self.horizonal_padding)
             box_height = height + self.margin - self.vertical_padding

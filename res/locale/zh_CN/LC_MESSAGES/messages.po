@@ -1,9 +1,9 @@
-
 msgid ""
+
 msgstr ""
 "Project-Id-Version: EngineerCoder 1.0\n"
 "Report-Msgid-Bugs-To: zzr4028@163.com\n"
-"POT-Creation-Date: 2026-07-31 14:54+0800\n"
+"POT-Creation-Date: 2026-08-28 11:21+0800\n"
 "PO-Revision-Date: 2026-07-13 17:29+0800\n"
 "Last-Translator: zzr zzr4028@163.com\n"
 "Language: zh_Hans_CN\n"
@@ -14,35 +14,47 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: core/build.py:46
+#: core/build.py:70
 msgid "B1001"
 msgstr "未知的构建错误。"
 
-#: core/build.py:47
+#: core/build.py:71
 msgid "B1002"
-msgstr "无效的构建配置：{1}"
+msgstr "无效的构建配置：{0}"
 
-#: core/build.py:48
+#: core/build.py:72
 msgid "B1003"
-msgstr "构建时发生I/O异常：{1}"
+msgstr "构建时发生I/O异常：{0}"
 
-#: core/build.py:49
+#: core/build.py:73
 msgid "B1004"
-msgstr "组件 \"{2}\" 不支持语言 \"{1}\"。"
+msgstr "组件 \"{1}\" 不支持语言 \"{0}\"。"
 
-#: core/build.py:50
+#: core/build.py:74
 msgid "B1005"
-msgstr "语言 \"{1}\" 有多个冲突组件 \"{2}\"。"
+msgstr "语言 \"{0}\" 有多个冲突组件 \"{1}\"。"
 
 #: core/build.py:75
+msgid "B1006"
+msgstr ""
+"静态检查拒绝了以下内容：\n"
+"{0}"
+
+#: core/build.py:76
+msgid "B1007"
+msgstr ""
+"生成的代码可能无法通过C语言编译：\n"
+"{0}"
+
+#: core/build.py:101
 msgid "CPG.enter.open_fail"
 msgstr "无法打开编译产物文件。"
 
-#: core/build.py:90
+#: core/build.py:117
 msgid "CPG.write.closed"
 msgstr "编译产物文件被意外关闭。"
 
-#: core/build.py:97
+#: core/build.py:124
 msgid "CPG.write.fail"
 msgstr "无法写入编译产物文件。"
 
@@ -66,18 +78,392 @@ msgstr "无效的资源格式：{1}"
 msgid "I2005"
 msgstr "无效的资源内容：{1}"
 
-#: interface/editor.py:103
-msgid "ui.component.filter"
-msgstr "搜索"
+#: interface/editor.py:55
+msgid "ui.build.level.error"
+msgstr "错误"
 
-#: interface/editor.py:104
+#: interface/editor.py:57
+msgid "ui.build.level.warning"
+msgstr "警告"
+
+#: interface/editor.py:59
+msgid "ui.build.level.info"
+msgstr "信息"
+
+#: interface/editor.py:119
+msgid "ui.build.title"
+msgstr "编译消息"
+
+#: interface/editor.py:130
+msgid "ui.build.column.level"
+msgstr "级别"
+
+#: interface/editor.py:130
+msgid "ui.build.column.code"
+msgstr "代码"
+
+#: interface/editor.py:130
+msgid "ui.build.column.message"
+msgstr "消息"
+
+#: interface/editor.py:462
+msgid "ui.action.compile"
+msgstr "编译"
+
+#: interface/editor.py:466
+msgid "ui.menu.file"
+msgstr "文件"
+
+#: interface/editor.py:468
+msgid "ui.action.new_project"
+msgstr "新建项目"
+
+#: interface/editor.py:472
+msgid "ui.action.open_project"
+msgstr "打开项目"
+
+#: interface/editor.py:476
+msgid "ui.action.add_script"
+msgstr "新建脚本"
+
+#: interface/editor.py:481
+msgid "ui.action.save"
+msgstr "保存"
+
+#: interface/editor.py:485
+msgid "ui.action.save_as"
+msgstr "另存为"
+
+#: interface/editor.py:498
+msgid "ui.action.properties"
+msgstr "项目属性..."
+
+#: interface/editor.py:503
+msgid "ui.menu.edit"
+msgstr "编辑"
+
+#: interface/editor.py:505
+msgid "ui.action.preferences"
+msgstr "首选项..."
+
+#: interface/editor.py:510
+msgid "ui.menu.view"
+msgstr "视图"
+
+#: interface/editor.py:511
+msgid "ui.menu.code"
+msgstr "代码"
+
+#: interface/editor.py:524
+msgid "ui.build.no_project"
+msgstr "没有已加载的项目可供构建。"
+
+#: interface/editor.py:531
+msgid "ui.build.fail"
+msgstr "构建失败：{0}"
+
+#: interface/editor.py:542
+msgid "ui.build.success"
+msgstr "构建成功：{0}"
+
+#: interface/editor.py:550 interface/editor.py:594 interface/editor.py:992
+msgid "ui.project.default_name"
+msgstr "未命名"
+
+#: interface/editor.py:555 interface/editor.py:558 interface/editor.py:607
+#: interface/editor.py:610
+msgid "ui.script.default_name"
+msgstr "main"
+
+#: interface/editor.py:586 interface/editor.py:642 interface/editor.py:913
+#: interface/editor.py:1009 interface/editor.py:1029
+msgid "ui.dialog.unsaved_title"
+msgstr "未保存的更改"
+
+#: interface/editor.py:587
+msgid "ui.dialog.unsaved_new"
+msgstr "当前项目有未保存的更改。是否在新建项目之前保存？"
+
+#: interface/editor.py:643
+msgid "ui.dialog.unsaved_open"
+msgstr "当前项目有未保存的更改。是否在打开其他项目之前保存？"
+
+#: interface/editor.py:651
+msgid "ui.dialog.open_project"
+msgstr "打开项目"
+
+#: interface/editor.py:652 interface/editor.py:722
+msgid "ui.dialog.ecproj_filter"
+msgstr "EngineerCoder 项目 (*.ecproj)"
+
+#: interface/editor.py:665
+msgid "ui.dialog.open_failed"
+msgstr "打开项目失败"
+
+#: interface/editor.py:706 interface/editor.py:941
+msgid "ui.dialog.save_failed"
+msgstr "保存项目失败"
+
+#: interface/editor.py:721
+msgid "ui.dialog.save_as"
+msgstr "另存为项目"
+
+#: interface/editor.py:742
+msgid "ui.dialog.add_script"
+msgstr "添加脚本"
+
+#: interface/editor.py:742
+msgid "ui.dialog.script_exists"
+msgstr "已存在同名脚本。"
+
+#: interface/editor.py:848 interface/preferences_dialog.py:63
+msgid "ui.prefs.title"
+msgstr "首选项"
+
+#: interface/editor.py:849
+msgid "ui.prefs.lang_restart"
+msgstr "语言变更将在重启后完全生效。"
+
+#: interface/editor.py:873 interface/editor.py:876
+msgid "ui.script.untitled"
+msgstr "未命名"
+
+#: interface/editor.py:891
+msgid "ui.dialog.name_script"
+msgstr "命名脚本"
+
+#: interface/editor.py:892
+msgid "ui.dialog.name_script_prompt"
+msgstr "脚本 '{0}' 尚未命名，请在保存前输入名称："
+
+#: interface/editor.py:914
+msgid "ui.dialog.unsaved_save_script"
+msgstr "脚本“{0}”有未保存的更改。是否保存？"
+
+#: interface/editor.py:931
+msgid "ui.dialog.save_script"
+msgstr "保存脚本"
+
+#: interface/editor.py:932
+msgid "ui.dialog.ecscript_filter"
+msgstr "EngineerCoder 脚本 (*.ecscript)"
+
+#: interface/editor.py:995 interface/editor.py:1054
 msgid "ui.title_short"
 msgstr "EngineerCoder"
 
-#: interface/editor.py:105
+#: interface/editor.py:1010
+msgid "ui.dialog.unsaved_close"
+msgstr "此脚本有未保存的更改。是否在关闭之前保存？"
+
+#: interface/editor.py:1030
+msgid "ui.dialog.unsaved_exit"
+msgstr "项目“{0}”有未保存的更改。是否在退出之前保存？"
+
+#: interface/editor.py:1053
+msgid "ui.component.filter"
+msgstr "搜索"
+
+#: interface/editor.py:1055
 msgid "ui.component.title"
 msgstr "组件"
 
-#: interface/editor.py:106
+#: interface/editor.py:1056
 msgid "ui.details.title"
 msgstr "详细信息"
+
+#: interface/new_project_dialog.py:29
+msgid "ui.dialog.new_project_title"
+msgstr "新建项目"
+
+#: interface/new_project_dialog.py:46
+msgid "ui.newproj.name"
+msgstr "项目名称："
+
+#: interface/new_project_dialog.py:49
+msgid "ui.newproj.target_lang"
+msgstr "目标语言："
+
+#: interface/new_project_dialog.py:52
+msgid "ui.newproj.kits"
+msgstr "项目使用的组件库："
+
+#: interface/new_project_dialog.py:137
+msgid "ui.newproj.dep_auto"
+msgstr "已自动勾选“{0}”依赖的组件库：{1}"
+
+#: interface/new_project_dialog.py:151
+msgid "ui.newproj.dep_required"
+msgstr "无法取消勾选“{0}”：组件库“{1}”依赖它。"
+
+#: interface/new_project_dialog.py:194 interface/new_project_dialog.py:197
+msgid "ui.newproj.detail.none"
+msgstr "无"
+
+#: interface/new_project_dialog.py:200
+msgid "ui.newproj.detail.languages"
+msgstr "支持语言："
+
+#: interface/new_project_dialog.py:201
+msgid "ui.newproj.detail.dependencies"
+msgstr "依赖组件库："
+
+#: interface/preferences_dialog.py:90
+msgid "ui.prefs.cat.appearance"
+msgstr "外观"
+
+#: interface/preferences_dialog.py:91
+msgid "ui.prefs.cat.editor"
+msgstr "编辑器"
+
+#: interface/preferences_dialog.py:131 interface/preferences_dialog.py:314
+#: interface/preferences_dialog.py:321 interface/preferences_dialog.py:324
+#: interface/preferences_dialog.py:331
+msgid "ui.prefs.theme.new"
+msgstr "新建"
+
+#: interface/preferences_dialog.py:135 interface/preferences_dialog.py:347
+#: interface/preferences_dialog.py:354 interface/preferences_dialog.py:357
+#: interface/preferences_dialog.py:371 interface/preferences_dialog.py:379
+msgid "ui.prefs.theme.save_as"
+msgstr "另存为"
+
+#: interface/preferences_dialog.py:139 interface/preferences_dialog.py:384
+#: interface/preferences_dialog.py:388 interface/preferences_dialog.py:396
+msgid "ui.prefs.theme.delete"
+msgstr "删除"
+
+#: interface/preferences_dialog.py:143
+msgid "ui.prefs.theme"
+msgstr "主题："
+
+#: interface/preferences_dialog.py:149
+msgid "ui.prefs.language"
+msgstr "语言："
+
+#: interface/preferences_dialog.py:153
+msgid "ui.prefs.colors.section"
+msgstr "颜色"
+
+#: interface/preferences_dialog.py:168
+msgid "ui.prefs.palette.section"
+msgstr "组件调色板"
+
+#: interface/preferences_dialog.py:206
+msgid "ui.prefs.font_size"
+msgstr "字体大小："
+
+#: interface/preferences_dialog.py:211
+msgid "ui.prefs.comp_list_width"
+msgstr "补全列表宽度："
+
+#: interface/preferences_dialog.py:216
+msgid "ui.prefs.comp_detail_width"
+msgstr "补全详情宽度："
+
+#: interface/preferences_dialog.py:221
+msgid "ui.prefs.comp_max_height"
+msgstr "补全最大高度："
+
+#: interface/preferences_dialog.py:314 interface/preferences_dialog.py:347
+msgid "ui.prefs.theme.name_prompt"
+msgstr "请输入主题名称："
+
+#: interface/preferences_dialog.py:325 interface/preferences_dialog.py:358
+msgid "ui.prefs.theme.exists"
+msgstr "同名主题已存在。"
+
+#: interface/preferences_dialog.py:380
+msgid "ui.prefs.theme.saved"
+msgstr "主题已保存。"
+
+#: interface/preferences_dialog.py:385
+msgid "ui.prefs.theme.builtin_nodelete"
+msgstr "无法删除内置主题。"
+
+#: interface/preferences_dialog.py:389
+msgid "ui.prefs.theme.confirm_delete"
+msgstr "确定要删除主题「{0}」吗？"
+
+#: interface/preferences_dialog.py:431
+msgid "ui.prefs.palette.edit"
+msgstr "编辑颜色"
+
+#: interface/project_properties_dialog.py:34
+msgid "ui.dialog.properties_title"
+msgstr "项目属性"
+
+#: interface/project_properties_dialog.py:44
+msgid "ui.props.tab.general"
+msgstr "常规"
+
+#: interface/project_properties_dialog.py:45
+msgid "ui.props.tab.kits"
+msgstr "组件库"
+
+#: interface/project_properties_dialog.py:46
+msgid "ui.props.tab.build"
+msgstr "构建"
+
+#: interface/project_properties_dialog.py:61
+msgid "ui.props.name"
+msgstr "项目名称："
+
+#: interface/project_properties_dialog.py:64
+msgid "ui.props.target_lang"
+msgstr "目标语言："
+
+#: interface/project_properties_dialog.py:69
+msgid "ui.props.c_standard"
+msgstr "C 标准："
+
+#: interface/project_properties_dialog.py:91
+msgid "ui.props.browse"
+msgstr "浏览..."
+
+#: interface/project_properties_dialog.py:94
+#: interface/project_properties_dialog.py:105
+msgid "ui.props.output_dir"
+msgstr "输出目录："
+
+#: interface/project_properties_dialog.py:99
+msgid "ui.props.opt_level"
+msgstr "优化等级："
+
+#: interface/project_properties_dialog.py:143
+msgid "ui.props.kits.none"
+msgstr "当前没有已导入的组件库。"
+
+#~ msgid "ui.dialog.script_name"
+#~ msgstr "脚本名称："
+
+#~ msgid "ui.props.opt.basic"
+#~ msgstr "基本优化 (O1)"
+
+#~ msgid "ui.props.opt.standard"
+#~ msgstr "标准优化 (O2)"
+
+#~ msgid "ui.props.opt.aggressive"
+#~ msgstr "激进优化 (O3)"
+
+#~ msgid "ui.prefs.color.background"
+#~ msgstr "背景色："
+
+#~ msgid "ui.prefs.color.primary"
+#~ msgstr "主色："
+
+#~ msgid "ui.prefs.color.secondary"
+#~ msgstr "辅色："
+
+#~ msgid "ui.prefs.color.tertiary"
+#~ msgstr "第三色："
+
+#~ msgid "ui.prefs.color.side"
+#~ msgstr "侧栏色："
+
+#~ msgid "ui.prefs.color.foreground"
+#~ msgstr "前景色："
+
+#~ msgid "ui.prefs.color.selected"
+#~ msgstr "选中色："
+

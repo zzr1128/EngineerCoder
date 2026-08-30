@@ -1,9 +1,9 @@
-
 msgid ""
+
 msgstr ""
 "Project-Id-Version: EngineerCoder 1.0\n"
 "Report-Msgid-Bugs-To: zzr4028@163.com\n"
-"POT-Creation-Date: 2026-07-31 14:54+0800\n"
+"POT-Creation-Date: 2026-08-28 11:21+0800\n"
 "PO-Revision-Date: 2026-07-13 17:29+0800\n"
 "Last-Translator: zzr zzr4028@163.com\n"
 "Language: en_US\n"
@@ -14,35 +14,47 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: core/build.py:46
+#: core/build.py:70
 msgid "B1001"
 msgstr "Unresolved building exception."
 
-#: core/build.py:47
+#: core/build.py:71
 msgid "B1002"
-msgstr "Invalid building configuration: {1}"
+msgstr "Invalid building configuration: {0}"
 
-#: core/build.py:48
+#: core/build.py:72
 msgid "B1003"
-msgstr "I/O exception during building: {1}"
+msgstr "I/O exception during building: {0}"
 
-#: core/build.py:49
+#: core/build.py:73
 msgid "B1004"
-msgstr "Language \"{1}\" not supported by component \"{2}\"."
+msgstr "Language \"{0}\" not supported by component \"{1}\"."
 
-#: core/build.py:50
+#: core/build.py:74
 msgid "B1005"
-msgstr "Multiple components \"{2}\" conflict for language \"{1}\"."
+msgstr "Multiple components \"{1}\" conflict for language \"{0}\"."
 
 #: core/build.py:75
+msgid "B1006"
+msgstr ""
+"Static checking rejected the contents:\n"
+"{0}"
+
+#: core/build.py:76
+msgid "B1007"
+msgstr ""
+"The generated code may not pass C compilation:\n"
+"{0}"
+
+#: core/build.py:101
 msgid "CPG.enter.open_fail"
 msgstr "Fail to open compilation product file."
 
-#: core/build.py:90
+#: core/build.py:117
 msgid "CPG.write.closed"
 msgstr "Compilation product file is unexpectedly closed."
 
-#: core/build.py:97
+#: core/build.py:124
 msgid "CPG.write.fail"
 msgstr "Fail to write into compilation product file."
 
@@ -66,18 +78,396 @@ msgstr "Invalid resource format: {1}"
 msgid "I2005"
 msgstr "Invalid resource content: {1}"
 
-#: interface/editor.py:103
-msgid "ui.component.filter"
-msgstr "Search"
+#: interface/editor.py:55
+msgid "ui.build.level.error"
+msgstr "Error"
 
-#: interface/editor.py:104
+#: interface/editor.py:57
+msgid "ui.build.level.warning"
+msgstr "Warning"
+
+#: interface/editor.py:59
+msgid "ui.build.level.info"
+msgstr "Info"
+
+#: interface/editor.py:119
+msgid "ui.build.title"
+msgstr "Compile Messages"
+
+#: interface/editor.py:130
+msgid "ui.build.column.level"
+msgstr "Level"
+
+#: interface/editor.py:130
+msgid "ui.build.column.code"
+msgstr "Code"
+
+#: interface/editor.py:130
+msgid "ui.build.column.message"
+msgstr "Message"
+
+#: interface/editor.py:462
+msgid "ui.action.compile"
+msgstr "Compile"
+
+#: interface/editor.py:466
+msgid "ui.menu.file"
+msgstr "File"
+
+#: interface/editor.py:468
+msgid "ui.action.new_project"
+msgstr "New Project"
+
+#: interface/editor.py:472
+msgid "ui.action.open_project"
+msgstr "Open Project"
+
+#: interface/editor.py:476
+msgid "ui.action.add_script"
+msgstr "New Script"
+
+#: interface/editor.py:481
+msgid "ui.action.save"
+msgstr "Save"
+
+#: interface/editor.py:485
+msgid "ui.action.save_as"
+msgstr "Save As"
+
+#: interface/editor.py:498
+msgid "ui.action.properties"
+msgstr "Project Properties..."
+
+#: interface/editor.py:503
+msgid "ui.menu.edit"
+msgstr "Edit"
+
+#: interface/editor.py:505
+msgid "ui.action.preferences"
+msgstr "Preferences..."
+
+#: interface/editor.py:510
+msgid "ui.menu.view"
+msgstr "View"
+
+#: interface/editor.py:511
+msgid "ui.menu.code"
+msgstr "Code"
+
+#: interface/editor.py:524
+msgid "ui.build.no_project"
+msgstr "No project is loaded to build."
+
+#: interface/editor.py:531
+msgid "ui.build.fail"
+msgstr "Build failed: {0}"
+
+#: interface/editor.py:542
+msgid "ui.build.success"
+msgstr "Build succeeded: {0}"
+
+#: interface/editor.py:550 interface/editor.py:594 interface/editor.py:992
+msgid "ui.project.default_name"
+msgstr "Untitled"
+
+#: interface/editor.py:555 interface/editor.py:558 interface/editor.py:607
+#: interface/editor.py:610
+msgid "ui.script.default_name"
+msgstr "main"
+
+#: interface/editor.py:586 interface/editor.py:642 interface/editor.py:913
+#: interface/editor.py:1009 interface/editor.py:1029
+msgid "ui.dialog.unsaved_title"
+msgstr "Unsaved Changes"
+
+#: interface/editor.py:587
+msgid "ui.dialog.unsaved_new"
+msgstr ""
+"The current project has unsaved changes. Do you want to save before "
+"creating a new project?"
+
+#: interface/editor.py:643
+msgid "ui.dialog.unsaved_open"
+msgstr ""
+"The current project has unsaved changes. Do you want to save before "
+"opening another project?"
+
+#: interface/editor.py:651
+msgid "ui.dialog.open_project"
+msgstr "Open Project"
+
+#: interface/editor.py:652 interface/editor.py:722
+msgid "ui.dialog.ecproj_filter"
+msgstr "EngineerCoder Projects (*.ecproj)"
+
+#: interface/editor.py:665
+msgid "ui.dialog.open_failed"
+msgstr "Failed to open project"
+
+#: interface/editor.py:706 interface/editor.py:941
+msgid "ui.dialog.save_failed"
+msgstr "Failed to save project"
+
+#: interface/editor.py:721
+msgid "ui.dialog.save_as"
+msgstr "Save Project As"
+
+#: interface/editor.py:742
+msgid "ui.dialog.add_script"
+msgstr "Add Script"
+
+#: interface/editor.py:742
+msgid "ui.dialog.script_exists"
+msgstr "A script with this name already exists."
+
+#: interface/editor.py:848 interface/preferences_dialog.py:63
+msgid "ui.prefs.title"
+msgstr "Preferences"
+
+#: interface/editor.py:849
+msgid "ui.prefs.lang_restart"
+msgstr "Language changes will take full effect after restart."
+
+#: interface/editor.py:873 interface/editor.py:876
+msgid "ui.script.untitled"
+msgstr "Untitled"
+
+#: interface/editor.py:891
+msgid "ui.dialog.name_script"
+msgstr "Name Script"
+
+#: interface/editor.py:892
+msgid "ui.dialog.name_script_prompt"
+msgstr "The script '{0}' has no name yet. Choose a name before saving:"
+
+#: interface/editor.py:914
+msgid "ui.dialog.unsaved_save_script"
+msgstr "The script '{0}' has unsaved changes. Do you want to save it?"
+
+#: interface/editor.py:931
+msgid "ui.dialog.save_script"
+msgstr "Save Script"
+
+#: interface/editor.py:932
+msgid "ui.dialog.ecscript_filter"
+msgstr "EngineerCoder Scripts (*.ecscript)"
+
+#: interface/editor.py:995 interface/editor.py:1054
 msgid "ui.title_short"
 msgstr "EngineerCoder"
 
-#: interface/editor.py:105
+#: interface/editor.py:1010
+msgid "ui.dialog.unsaved_close"
+msgstr "This script has unsaved changes. Do you want to save before closing?"
+
+#: interface/editor.py:1030
+msgid "ui.dialog.unsaved_exit"
+msgstr "Project “{0}” has unsaved changes. Do you want to save before exiting?"
+
+#: interface/editor.py:1053
+msgid "ui.component.filter"
+msgstr "Search"
+
+#: interface/editor.py:1055
 msgid "ui.component.title"
 msgstr "Components"
 
-#: interface/editor.py:106
+#: interface/editor.py:1056
 msgid "ui.details.title"
 msgstr "Details"
+
+#: interface/new_project_dialog.py:29
+msgid "ui.dialog.new_project_title"
+msgstr "New Project"
+
+#: interface/new_project_dialog.py:46
+msgid "ui.newproj.name"
+msgstr "Project Name:"
+
+#: interface/new_project_dialog.py:49
+msgid "ui.newproj.target_lang"
+msgstr "Target Language:"
+
+#: interface/new_project_dialog.py:52
+msgid "ui.newproj.kits"
+msgstr "Kits the project uses:"
+
+#: interface/new_project_dialog.py:137
+msgid "ui.newproj.dep_auto"
+msgstr "Automatically checked the kits “{0}” depends on: {1}"
+
+#: interface/new_project_dialog.py:151
+msgid "ui.newproj.dep_required"
+msgstr "Cannot uncheck “{0}”: required by “{1}”."
+
+#: interface/new_project_dialog.py:194 interface/new_project_dialog.py:197
+msgid "ui.newproj.detail.none"
+msgstr "None"
+
+#: interface/new_project_dialog.py:200
+msgid "ui.newproj.detail.languages"
+msgstr "Supported languages: "
+
+#: interface/new_project_dialog.py:201
+msgid "ui.newproj.detail.dependencies"
+msgstr "Depends on: "
+
+#: interface/preferences_dialog.py:90
+msgid "ui.prefs.cat.appearance"
+msgstr "Appearance"
+
+#: interface/preferences_dialog.py:91
+msgid "ui.prefs.cat.editor"
+msgstr "Editor"
+
+#: interface/preferences_dialog.py:131 interface/preferences_dialog.py:314
+#: interface/preferences_dialog.py:321 interface/preferences_dialog.py:324
+#: interface/preferences_dialog.py:331
+msgid "ui.prefs.theme.new"
+msgstr "New"
+
+#: interface/preferences_dialog.py:135 interface/preferences_dialog.py:347
+#: interface/preferences_dialog.py:354 interface/preferences_dialog.py:357
+#: interface/preferences_dialog.py:371 interface/preferences_dialog.py:379
+msgid "ui.prefs.theme.save_as"
+msgstr "Save As"
+
+#: interface/preferences_dialog.py:139 interface/preferences_dialog.py:384
+#: interface/preferences_dialog.py:388 interface/preferences_dialog.py:396
+msgid "ui.prefs.theme.delete"
+msgstr "Delete"
+
+#: interface/preferences_dialog.py:143
+msgid "ui.prefs.theme"
+msgstr "Theme:"
+
+#: interface/preferences_dialog.py:149
+msgid "ui.prefs.language"
+msgstr "Language:"
+
+#: interface/preferences_dialog.py:153
+msgid "ui.prefs.colors.section"
+msgstr "Colors"
+
+#: interface/preferences_dialog.py:168
+msgid "ui.prefs.palette.section"
+msgstr "Components Palette"
+
+#: interface/preferences_dialog.py:206
+msgid "ui.prefs.font_size"
+msgstr "Font Size:"
+
+#: interface/preferences_dialog.py:211
+msgid "ui.prefs.comp_list_width"
+msgstr "Completion List Width:"
+
+#: interface/preferences_dialog.py:216
+msgid "ui.prefs.comp_detail_width"
+msgstr "Completion Detail Width:"
+
+#: interface/preferences_dialog.py:221
+msgid "ui.prefs.comp_max_height"
+msgstr "Completion Max Height:"
+
+#: interface/preferences_dialog.py:314 interface/preferences_dialog.py:347
+msgid "ui.prefs.theme.name_prompt"
+msgstr "Enter theme name:"
+
+#: interface/preferences_dialog.py:325 interface/preferences_dialog.py:358
+msgid "ui.prefs.theme.exists"
+msgstr "A theme with this name already exists."
+
+#: interface/preferences_dialog.py:380
+msgid "ui.prefs.theme.saved"
+msgstr "Theme saved."
+
+#: interface/preferences_dialog.py:385
+msgid "ui.prefs.theme.builtin_nodelete"
+msgstr "Cannot delete built-in theme."
+
+#: interface/preferences_dialog.py:389
+msgid "ui.prefs.theme.confirm_delete"
+msgstr "Delete theme '{0}'?"
+
+#: interface/preferences_dialog.py:431
+msgid "ui.prefs.palette.edit"
+msgstr "Edit Color"
+
+#: interface/project_properties_dialog.py:34
+msgid "ui.dialog.properties_title"
+msgstr "Project Properties"
+
+#: interface/project_properties_dialog.py:44
+msgid "ui.props.tab.general"
+msgstr "General"
+
+#: interface/project_properties_dialog.py:45
+msgid "ui.props.tab.kits"
+msgstr "Kits"
+
+#: interface/project_properties_dialog.py:46
+msgid "ui.props.tab.build"
+msgstr "Build"
+
+#: interface/project_properties_dialog.py:61
+msgid "ui.props.name"
+msgstr "Project Name:"
+
+#: interface/project_properties_dialog.py:64
+msgid "ui.props.target_lang"
+msgstr "Target Language:"
+
+#: interface/project_properties_dialog.py:69
+msgid "ui.props.c_standard"
+msgstr "C Standard:"
+
+#: interface/project_properties_dialog.py:91
+msgid "ui.props.browse"
+msgstr "Browse..."
+
+#: interface/project_properties_dialog.py:94
+#: interface/project_properties_dialog.py:105
+msgid "ui.props.output_dir"
+msgstr "Output Directory:"
+
+#: interface/project_properties_dialog.py:99
+msgid "ui.props.opt_level"
+msgstr "Optimization Level:"
+
+#: interface/project_properties_dialog.py:143
+msgid "ui.props.kits.none"
+msgstr "No kits are currently imported."
+
+#~ msgid "ui.dialog.script_name"
+#~ msgstr "Script name:"
+
+#~ msgid "ui.props.opt.basic"
+#~ msgstr "Basic Optimization (O1)"
+
+#~ msgid "ui.props.opt.standard"
+#~ msgstr "Standard Optimization (O2)"
+
+#~ msgid "ui.props.opt.aggressive"
+#~ msgstr "Aggressive Optimization (O3)"
+
+#~ msgid "ui.prefs.color.background"
+#~ msgstr "Background:"
+
+#~ msgid "ui.prefs.color.primary"
+#~ msgstr "Primary:"
+
+#~ msgid "ui.prefs.color.secondary"
+#~ msgstr "Secondary:"
+
+#~ msgid "ui.prefs.color.tertiary"
+#~ msgstr "Tertiary:"
+
+#~ msgid "ui.prefs.color.side"
+#~ msgstr "Side:"
+
+#~ msgid "ui.prefs.color.foreground"
+#~ msgstr "Foreground:"
+
+#~ msgid "ui.prefs.color.selected"
+#~ msgstr "Selected:"
+

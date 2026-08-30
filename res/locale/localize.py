@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 
+import inspect
 import os
 import sys
 import pathlib
 import inspect
 import subprocess
+import sys
 
 if __name__ != '__main__':
     print('This module is not designed to be imported', file=sys.stderr)

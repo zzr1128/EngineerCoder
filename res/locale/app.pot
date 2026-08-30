@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-07-31 14:54+0800\n"
+"POT-Creation-Date: 2026-08-28 11:21+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,35 +17,43 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: core/build.py:46
+#: core/build.py:70
 msgid "B1001"
 msgstr ""
 
-#: core/build.py:47
+#: core/build.py:71
 msgid "B1002"
 msgstr ""
 
-#: core/build.py:48
+#: core/build.py:72
 msgid "B1003"
 msgstr ""
 
-#: core/build.py:49
+#: core/build.py:73
 msgid "B1004"
 msgstr ""
 
-#: core/build.py:50
+#: core/build.py:74
 msgid "B1005"
 msgstr ""
 
 #: core/build.py:75
+msgid "B1006"
+msgstr ""
+
+#: core/build.py:76
+msgid "B1007"
+msgstr ""
+
+#: core/build.py:101
 msgid "CPG.enter.open_fail"
 msgstr ""
 
-#: core/build.py:90
+#: core/build.py:117
 msgid "CPG.write.closed"
 msgstr ""
 
-#: core/build.py:97
+#: core/build.py:124
 msgid "CPG.write.fail"
 msgstr ""
 
@@ -69,19 +77,359 @@ msgstr ""
 msgid "I2005"
 msgstr ""
 
-#: interface/editor.py:103
-msgid "ui.component.filter"
+#: interface/editor.py:55
+msgid "ui.build.level.error"
 msgstr ""
 
-#: interface/editor.py:104
+#: interface/editor.py:57
+msgid "ui.build.level.warning"
+msgstr ""
+
+#: interface/editor.py:59
+msgid "ui.build.level.info"
+msgstr ""
+
+#: interface/editor.py:119
+msgid "ui.build.title"
+msgstr ""
+
+#: interface/editor.py:130
+msgid "ui.build.column.level"
+msgstr ""
+
+#: interface/editor.py:130
+msgid "ui.build.column.code"
+msgstr ""
+
+#: interface/editor.py:130
+msgid "ui.build.column.message"
+msgstr ""
+
+#: interface/editor.py:462
+msgid "ui.action.compile"
+msgstr ""
+
+#: interface/editor.py:466
+msgid "ui.menu.file"
+msgstr ""
+
+#: interface/editor.py:468
+msgid "ui.action.new_project"
+msgstr ""
+
+#: interface/editor.py:472
+msgid "ui.action.open_project"
+msgstr ""
+
+#: interface/editor.py:476
+msgid "ui.action.add_script"
+msgstr ""
+
+#: interface/editor.py:481
+msgid "ui.action.save"
+msgstr ""
+
+#: interface/editor.py:485
+msgid "ui.action.save_as"
+msgstr ""
+
+#: interface/editor.py:498
+msgid "ui.action.properties"
+msgstr ""
+
+#: interface/editor.py:503
+msgid "ui.menu.edit"
+msgstr ""
+
+#: interface/editor.py:505
+msgid "ui.action.preferences"
+msgstr ""
+
+#: interface/editor.py:510
+msgid "ui.menu.view"
+msgstr ""
+
+#: interface/editor.py:511
+msgid "ui.menu.code"
+msgstr ""
+
+#: interface/editor.py:524
+msgid "ui.build.no_project"
+msgstr ""
+
+#: interface/editor.py:531
+msgid "ui.build.fail"
+msgstr ""
+
+#: interface/editor.py:542
+msgid "ui.build.success"
+msgstr ""
+
+#: interface/editor.py:550 interface/editor.py:594 interface/editor.py:992
+msgid "ui.project.default_name"
+msgstr ""
+
+#: interface/editor.py:555 interface/editor.py:558 interface/editor.py:607
+#: interface/editor.py:610
+msgid "ui.script.default_name"
+msgstr ""
+
+#: interface/editor.py:586 interface/editor.py:642 interface/editor.py:913
+#: interface/editor.py:1009 interface/editor.py:1029
+msgid "ui.dialog.unsaved_title"
+msgstr ""
+
+#: interface/editor.py:587
+msgid "ui.dialog.unsaved_new"
+msgstr ""
+
+#: interface/editor.py:643
+msgid "ui.dialog.unsaved_open"
+msgstr ""
+
+#: interface/editor.py:651
+msgid "ui.dialog.open_project"
+msgstr ""
+
+#: interface/editor.py:652 interface/editor.py:722
+msgid "ui.dialog.ecproj_filter"
+msgstr ""
+
+#: interface/editor.py:665
+msgid "ui.dialog.open_failed"
+msgstr ""
+
+#: interface/editor.py:706 interface/editor.py:941
+msgid "ui.dialog.save_failed"
+msgstr ""
+
+#: interface/editor.py:721
+msgid "ui.dialog.save_as"
+msgstr ""
+
+#: interface/editor.py:742
+msgid "ui.dialog.add_script"
+msgstr ""
+
+#: interface/editor.py:742
+msgid "ui.dialog.script_exists"
+msgstr ""
+
+#: interface/editor.py:848 interface/preferences_dialog.py:63
+msgid "ui.prefs.title"
+msgstr ""
+
+#: interface/editor.py:849
+msgid "ui.prefs.lang_restart"
+msgstr ""
+
+#: interface/editor.py:873 interface/editor.py:876
+msgid "ui.script.untitled"
+msgstr ""
+
+#: interface/editor.py:891
+msgid "ui.dialog.name_script"
+msgstr ""
+
+#: interface/editor.py:892
+msgid "ui.dialog.name_script_prompt"
+msgstr ""
+
+#: interface/editor.py:914
+msgid "ui.dialog.unsaved_save_script"
+msgstr ""
+
+#: interface/editor.py:931
+msgid "ui.dialog.save_script"
+msgstr ""
+
+#: interface/editor.py:932
+msgid "ui.dialog.ecscript_filter"
+msgstr ""
+
+#: interface/editor.py:995 interface/editor.py:1054
 msgid "ui.title_short"
 msgstr ""
 
-#: interface/editor.py:105
+#: interface/editor.py:1010
+msgid "ui.dialog.unsaved_close"
+msgstr ""
+
+#: interface/editor.py:1030
+msgid "ui.dialog.unsaved_exit"
+msgstr ""
+
+#: interface/editor.py:1053
+msgid "ui.component.filter"
+msgstr ""
+
+#: interface/editor.py:1055
 msgid "ui.component.title"
 msgstr ""
 
-#: interface/editor.py:106
+#: interface/editor.py:1056
 msgid "ui.details.title"
+msgstr ""
+
+#: interface/new_project_dialog.py:29
+msgid "ui.dialog.new_project_title"
+msgstr ""
+
+#: interface/new_project_dialog.py:46
+msgid "ui.newproj.name"
+msgstr ""
+
+#: interface/new_project_dialog.py:49
+msgid "ui.newproj.target_lang"
+msgstr ""
+
+#: interface/new_project_dialog.py:52
+msgid "ui.newproj.kits"
+msgstr ""
+
+#: interface/new_project_dialog.py:137
+msgid "ui.newproj.dep_auto"
+msgstr ""
+
+#: interface/new_project_dialog.py:151
+msgid "ui.newproj.dep_required"
+msgstr ""
+
+#: interface/new_project_dialog.py:194 interface/new_project_dialog.py:197
+msgid "ui.newproj.detail.none"
+msgstr ""
+
+#: interface/new_project_dialog.py:200
+msgid "ui.newproj.detail.languages"
+msgstr ""
+
+#: interface/new_project_dialog.py:201
+msgid "ui.newproj.detail.dependencies"
+msgstr ""
+
+#: interface/preferences_dialog.py:90
+msgid "ui.prefs.cat.appearance"
+msgstr ""
+
+#: interface/preferences_dialog.py:91
+msgid "ui.prefs.cat.editor"
+msgstr ""
+
+#: interface/preferences_dialog.py:131 interface/preferences_dialog.py:314
+#: interface/preferences_dialog.py:321 interface/preferences_dialog.py:324
+#: interface/preferences_dialog.py:331
+msgid "ui.prefs.theme.new"
+msgstr ""
+
+#: interface/preferences_dialog.py:135 interface/preferences_dialog.py:347
+#: interface/preferences_dialog.py:354 interface/preferences_dialog.py:357
+#: interface/preferences_dialog.py:371 interface/preferences_dialog.py:379
+msgid "ui.prefs.theme.save_as"
+msgstr ""
+
+#: interface/preferences_dialog.py:139 interface/preferences_dialog.py:384
+#: interface/preferences_dialog.py:388 interface/preferences_dialog.py:396
+msgid "ui.prefs.theme.delete"
+msgstr ""
+
+#: interface/preferences_dialog.py:143
+msgid "ui.prefs.theme"
+msgstr ""
+
+#: interface/preferences_dialog.py:149
+msgid "ui.prefs.language"
+msgstr ""
+
+#: interface/preferences_dialog.py:153
+msgid "ui.prefs.colors.section"
+msgstr ""
+
+#: interface/preferences_dialog.py:168
+msgid "ui.prefs.palette.section"
+msgstr ""
+
+#: interface/preferences_dialog.py:206
+msgid "ui.prefs.font_size"
+msgstr ""
+
+#: interface/preferences_dialog.py:211
+msgid "ui.prefs.comp_list_width"
+msgstr ""
+
+#: interface/preferences_dialog.py:216
+msgid "ui.prefs.comp_detail_width"
+msgstr ""
+
+#: interface/preferences_dialog.py:221
+msgid "ui.prefs.comp_max_height"
+msgstr ""
+
+#: interface/preferences_dialog.py:314 interface/preferences_dialog.py:347
+msgid "ui.prefs.theme.name_prompt"
+msgstr ""
+
+#: interface/preferences_dialog.py:325 interface/preferences_dialog.py:358
+msgid "ui.prefs.theme.exists"
+msgstr ""
+
+#: interface/preferences_dialog.py:380
+msgid "ui.prefs.theme.saved"
+msgstr ""
+
+#: interface/preferences_dialog.py:385
+msgid "ui.prefs.theme.builtin_nodelete"
+msgstr ""
+
+#: interface/preferences_dialog.py:389
+msgid "ui.prefs.theme.confirm_delete"
+msgstr ""
+
+#: interface/preferences_dialog.py:431
+msgid "ui.prefs.palette.edit"
+msgstr ""
+
+#: interface/project_properties_dialog.py:34
+msgid "ui.dialog.properties_title"
+msgstr ""
+
+#: interface/project_properties_dialog.py:44
+msgid "ui.props.tab.general"
+msgstr ""
+
+#: interface/project_properties_dialog.py:45
+msgid "ui.props.tab.kits"
+msgstr ""
+
+#: interface/project_properties_dialog.py:46
+msgid "ui.props.tab.build"
+msgstr ""
+
+#: interface/project_properties_dialog.py:61
+msgid "ui.props.name"
+msgstr ""
+
+#: interface/project_properties_dialog.py:64
+msgid "ui.props.target_lang"
+msgstr ""
+
+#: interface/project_properties_dialog.py:69
+msgid "ui.props.c_standard"
+msgstr ""
+
+#: interface/project_properties_dialog.py:91
+msgid "ui.props.browse"
+msgstr ""
+
+#: interface/project_properties_dialog.py:94
+#: interface/project_properties_dialog.py:105
+msgid "ui.props.output_dir"
+msgstr ""
+
+#: interface/project_properties_dialog.py:99
+msgid "ui.props.opt_level"
+msgstr ""
+
+#: interface/project_properties_dialog.py:143
+msgid "ui.props.kits.none"
 msgstr ""
 

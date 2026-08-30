@@ -4,6 +4,7 @@ import json
 
 from alias import *
 from core.environment import Environment
+from core.graphics import IComponentGraphics
 from core.kit import Kit
 from core.project import Project
 
@@ -29,17 +30,21 @@ class ProjectArchive:
             raise ProjectArchive.ArchiveError(f'Cannot archive {project} to {path}: I/O error')
 
     @staticmethod
-    def unarchive(path: string, env: Environment) -> Project:
+    def unarchive(path: string, env: Environment, graphics: IComponentGraphics) -> Project:
         """
         Load a project from a file at specified path.
-        :raise ProjectArchive.ArchiveError: raise when deserialization or file I/O fails
+        :param path: path of the project file
+        :param env: environment providing the kit manager to resolve components
+        :param graphics: graphics interface of the canvas the project's scripts
+            are restored on (restoring component trees requires a UI context)
+        :raise ProjectArchive.ArchiveError: raise when restoration or file I/O fails
         """
         try:
             with open(path, 'r', encoding='utf-8') as f:
                 obj = json.load(f)
         except OSError as exc:
             raise ProjectArchive.ArchiveError(f'Cannot unarchive {path}: I/O error ({exc})')
-        proj: Project = deserialize(Project, obj)
+        proj: Project = Project.restore(obj, env.kit_manager, graphics)
         required_kits: IList[Kit] = []
         for kit_dict in proj.required_kits:
             required_kits.append(env.kit_manager[kit_dict['name']])

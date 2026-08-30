@@ -1,12 +1,25 @@
 # -*- coding: utf-8 -*-
 
 import enum
+from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QPoint, QRect, Qt, QRectF, QPointF
+from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QFontMetricsF
-from PySide6.QtWidgets import QWidget, QLineEdit, QTextEdit, QLabel
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QLabel,
+    QLineEdit,
+    QTextEdit,
+    QWidget,
+)
 
 from alias import *
+
+if TYPE_CHECKING:
+    from core.component import IComponentInterface
+    from core.hyper_text_edit import HyperTextEdit
+    from interface.visual_code_edit import VisualCodeEdit
 
 
 @final
@@ -78,18 +91,54 @@ class IComponentGraphics:
 
     @pure_virtual
     def push_anchor(self, anchor: QPointF) -> void:
+        """
+        Push an anchor point into the anchor_stack.
+
+        The position of the anchor is relative to that of the previous one (or topleft of the
+        client area if anchor_stack is empty).
+        When locating a position or figure, the anchor is taken as the origin.
+
+        :param anchor: the anchor point to be pushed
+        """
         raise NotImplementedError
 
     @pure_virtual
     def pop_anchor(self) -> void:
+        """
+        Pop the last anchor point from the anchor_stack.
+        """
         raise NotImplementedError
 
     @pure_virtual
     def move_anchor(self, dx: int | float, dy: int | float) -> void:
+        """
+        Move the current anchor point by the specified offset.
+        :param dx: horizontal offset
+        :param dy: vertical offset
+        """
         raise NotImplementedError
 
     @pure_virtual
     def external_anchor(self) -> QPointF:
+        """
+        Get the accumulated anchor point except the current one.
+        """
+        raise NotImplementedError
+
+    @pure_virtual
+    def push_right_occupation(self, width: int | float) -> void:
+        """
+        Push right occupation of the current anchor.
+        When acquiring the client rectangle, the pushed occupation is not contained.
+        :param width: occupied width
+        """
+        raise NotImplementedError
+
+    @pure_virtual
+    def pop_occupation(self) -> void:
+        """
+        Pop the last occupation pushed.
+        """
         raise NotImplementedError
 
     @pure_virtual
@@ -338,9 +387,17 @@ class IComponentGraphics:
         raise NotImplementedError
 
     @pure_virtual
-    def create_hypertext_edit(self, rect: QRect | QRectF) -> '__import__("hyper_text_edit").HyperTextEdit':
+    def create_hypertext_edit(self, rect: QRect | QRectF) -> 'HyperTextEdit':
         """
         Create a hyper-text edit control at the specified offset relative to the anchor point.
+        :param rect: offset position and size
+        """
+        raise NotImplementedError
+
+    @pure_virtual
+    def create_visual_code_edit(self, rect: QRect | QRectF) -> 'VisualCodeEdit':
+        """
+        Create a visual-code edit control at the specified offset relative to the anchor point.
         :param rect: offset position and size
         """
         raise NotImplementedError
@@ -369,7 +426,7 @@ class IComponentGraphics:
 
     # Implementation of overloads
     @pure_virtual
-    def create_text(self, text: string, pos: QPoint | QPointF | QRect | QRectF, font: QFont, /) -> QLabel:
+    def create_text(self, text: string, pos_or_font: QPoint | QPointF | QRect | QRectF, font: QFont, /) -> QLabel:
         raise NotImplementedError
 
     @pure_virtual
@@ -380,6 +437,34 @@ class IComponentGraphics:
         :param font: font of the label
 
         This method will automatically compute the size of the label.
+        """
+        raise NotImplementedError
+
+    @pure_virtual
+    def create_checkbox(self, text: string, font: QFont) -> QCheckBox:
+        """
+        Create a check box control.
+        :param text: text of the check box
+        :param font: font of the check box
+
+        This method will automatically compute the size of the check box.
+        """
+        raise NotImplementedError
+
+    @pure_virtual
+    def create_combobox(self, rect: QRect | QRectF) -> QComboBox:
+        """
+        Create a drop-down selection control at the specified offset relative to the anchor point.
+        :param rect: offset position and size
+        """
+        raise NotImplementedError
+
+    @pure_virtual
+    def label_metric_width(self, label: QLabel, *, modify: bool = False) -> int:
+        """
+        Get the metric width of the label text.
+        :param label: the label widget that contains text
+        :param modify: when ``True``, modify the label text to be the metric width
         """
         raise NotImplementedError
 
@@ -451,5 +536,25 @@ class IComponentGraphics:
         Request the canvas to repaint the whole content as soon as possible.
         Use this when the visual content becomes stale without any widget geometry change
         covering the dirty region (e.g. layout space of a component changed).
+        """
+        raise NotImplementedError
+
+    @pure_virtual
+    def add_interface(self, component: 'IComponentInterface', right_occupation: int | float = 0.) -> void:
+        """
+        Register a component interface so that it will be painted on the graphics canvas.
+        :param component: the component interface to add
+        :param right_occupation: right occupation of the client area of the interface; while the
+            interface is painted, the client rectangle it acquires is narrowed by this width.
+            This is used when the interface is placed inline inside another widget (e.g. a
+            visual code edit) whose column does not extend to the right edge of the canvas.
+        """
+        raise NotImplementedError
+
+    @pure_virtual
+    def remove_interface(self, component: 'IComponentInterface') -> void:
+        """
+        Unregister a component interface so that it will no longer be painted.
+        :param component: the component interface to remove
         """
         raise NotImplementedError

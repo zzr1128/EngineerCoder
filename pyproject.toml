@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "engineercoder"
+version = "0.1.0"
+description = "Visual, component-based code editor for Ansys Fluent UDF development"
+requires-python = ">=3.13"
+dependencies = [
+    "PySide6>=6.7",
+    "multipledispatch>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.6",
+    "babel>=2.14",
+]
+
+[tool.setuptools.packages.find]
+include = ["core*", "interface*", "kits*"]
+
+[tool.ruff]
+target-version = "py313"
+force-exclude = true
+extend-exclude = [
+    "build",
+    "__pycache__",
+    "kits/cbased/clang",
+    "sdk",
+    "interface/ui_style_editor.py",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+ignore = [
+    # established conventions in this codebase:
+    "F403",  # `from alias import *` / PySide6 star imports everywhere
+    "F405",  # names provided by those star imports
+    "F811",  # manual @overload-style redefinition is the dispatch pattern
+    "E402",  # sdk scripts must patch sys.path before importing
+    "E501",  # long lines are common; not worth mass reflows
+    "E741",  # single-letter names in math/geometry code
+]
+
+[tool.ruff.lint.per-file-ignores]
+# kit entry modules deliberately re-export every component class so the kit
+# loader discovers them; the import order is part of the registration chain
+"kits/*/__init__.py" = ["F401", "I001"]
+# deferred in-method imports carry explanatory comments and stay in place
+"kits/fluent/api.py" = ["I001"]
+"kits/fluent/traversal.py" = ["I001"]

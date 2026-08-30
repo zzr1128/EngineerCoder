@@ -3,17 +3,35 @@
 from dataclasses import dataclass
 from math import ceil
 
+from graphics import TextMeasure
+from PySide6.QtCore import QLineF, QPoint, QPointF, QRect, QRectF, Qt
+from PySide6.QtGui import (
+    QBrush,
+    QColor,
+    QFont,
+    QPainter,
+    QPainterPath,
+    QPaintEvent,
+    QPen,
+    QResizeEvent,
+)
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QLabel,
+    QLineEdit,
+    QTextEdit,
+    QWidget,
+)
 from shiboken6 import getCppPointer
-from PySide6.QtCore import Qt, QPoint, QRect, QRectF, QPointF, QLineF
-from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QPainterPath, QPaintEvent, QResizeEvent
-from PySide6.QtWidgets import QWidget, QTextEdit, QLineEdit, QLabel
 
 from alias import *
+from alias import Nullable
 from core.component import IComponentInterface
 from core.environment import Environment
 from core.graphics import IComponentGraphics, WrapMode
 from core.hyper_text_edit import HyperTextEdit
-from graphics import TextMeasure
+from interface.visual_code_edit import VisualCodeEdit
 
 
 class EditionCanvas(QWidget, IComponentGraphics):
@@ -208,17 +226,31 @@ class EditionCanvas(QWidget, IComponentGraphics):
 
     def __init__(self, parent):
         super(EditionCanvas, self).__init__(parent)
-        self.stack: IList[QPointF] = []
+        # The canvas never fills its own background: filling uses the palette's Window
+        # role (the dark system color on dark-mode systems), which would cover the tab
+        # page background underneath. Stylesheet matches during reparenting may silently
+        # turn auto-fill on, so keep it off explicitly
+        self.setAutoFillBackground(False)
+        self.anchor_stack: IList[QPointF] = []
+        self.width_occupy_stack: IList[float] = []
         self.painter: Nullable[QPainter] = null
         self.figures: IList[EditionCanvas.Paintable] = []
         self.widgets: IDictionary[int, tuple[QWidget, EditionCanvas.WidgetAnnotation]] = {}
         self.components: IList[IComponentInterface] = []
+        self.interface_occupations: IDictionary[IComponentInterface, float] = {}
+        self._content_height: int = 0  # Height needed to show every widget (drives scrolling)
+        self._dirty_callback: Nullable[callable] = None
 
-    def add_interface(self, component: IComponentInterface) -> void:
+    def add_interface(self, component: IComponentInterface, right_occupation: int | float = 0.) -> void:
         self.components.append(component)
+        self.interface_occupations[component] = float(right_occupation)
 
     def remove_interface(self, component: IComponentInterface) -> void:
         self.components.remove(component)
+        self.interface_occupations.pop(component, null)
+
+    def set_dirty_callback(self, callback: callable) -> void:
+        self._dirty_callback = callback
 
     def paintEvent(self, event: QPaintEvent, /) -> null:
         # When interface updates, remember to update in resizeEvent
@@ -227,41 +259,63 @@ class EditionCanvas(QWidget, IComponentGraphics):
                 figure.paint(self.painter)  # type: ignore (not null)
 
             for inter in self.components:
+                # Narrow the client area of the interface by its right occupation while painting
+                occupation = self.interface_occupations.get(inter, 0.)
+                if occupation > 0:
+                    self.push_right_occupation(occupation)
                 inter.paint(self)
+                if occupation > 0:
+                    self.pop_occupation()
 
         self.painter = null
+        # Painting relocates widgets (layout.update); keep the extent in sync afterwards
+        self._update_extent()
 
     # noinspection property-definition
     @property
     def _current_anchor(self) -> QPointF:
-        if self.stack:
-            return self.stack[-1]
+        if self.anchor_stack:
+            return self.anchor_stack[-1]
         else:
             return QPointF()
 
     def push_anchor(self, anchor: QPoint | QPointF) -> void:  # Can only be called synchronously
         if isinstance(anchor, QPoint):
             anchor = QPointF(anchor)
-        self.stack.append(self._absolute_point(anchor))
+        self.anchor_stack.append(self._absolute_point(anchor))
 
     def pop_anchor(self) -> void:  # Can only be called synchronously
-        self.stack.pop()
+        self.anchor_stack.pop()
 
     def move_anchor(self, dx: int | float, dy: int | float) -> void:  # Can only be called synchronously
         """
-        Move the current anchor point.
+        Move the current anchor point by the specified offset.
         Assume there exists at least one anchor.
         """
-        p = self.stack.pop()
-        self.stack.append(QPointF(p.x() + dx, p.y() + dy))
+        p = self.anchor_stack.pop()
+        self.anchor_stack.append(QPointF(p.x() + dx, p.y() + dy))
 
     def external_anchor(self) -> QPointF:  # Can only be called synchronously
         """
-        The accumulated anchor point except the current one.
+        Get the accumulated anchor point except the current one.
         """
-        if len(self.stack) >= 2:
-            return QPointF(self.stack[-2].x(), self.stack[-2].y())
+        if len(self.anchor_stack) >= 2:
+            return QPointF(self.anchor_stack[-2].x(), self.anchor_stack[-2].y())
         return QPointF()
+
+    def push_right_occupation(self, width: int | float) -> void:  # Can only be called synchronously
+        """
+        Push right occupation of the current anchor.
+        See IComponentGraphics.push_right_occupation(width).
+        """
+        self.width_occupy_stack.append(float(width))
+
+    def pop_occupation(self) -> void:  # Can only be called synchronously
+        """
+        Pop the last occupation pushed.
+        See IComponentGraphics.pop_occupation().
+        """
+        self.width_occupy_stack.pop()
 
     @final
     def _absolute_point(self, point: QPoint | QPointF) -> QPointF:
@@ -270,11 +324,27 @@ class EditionCanvas(QWidget, IComponentGraphics):
         """
         return QPointF((self._current_anchor.x() + point.x()), (self._current_anchor.y() + point.y()))
 
-    @final
+    @overload
     def _absolute_rect(self, rect: QRect | QRectF) -> QRectF:
         """
         Absolute position and size of a rectangle relative to the anchor.
         """
+        ...
+
+    @overload
+    def _absolute_rect(self, rect: null) -> null:
+        """
+        Absolute position and size of a rectangle relative to the anchor.
+        """
+        ...
+
+    @final
+    def _absolute_rect(self, rect: Nullable[QRect | QRectF]) -> Nullable[QRectF]:
+        """
+        Absolute position and size of a rectangle relative to the anchor.
+        """
+        if rect is None:
+            return null
         if isinstance(rect, QRect):
             rect = QRectF(rect)
         return QRectF(self._absolute_point(rect.topLeft()), rect.size())
@@ -509,6 +579,7 @@ class EditionCanvas(QWidget, IComponentGraphics):
             r = r.toRect()
         edit.setGeometry(r)
         edit.setFixedSize(r.size())
+        edit.show()  # Widgets created after the canvas is shown stay hidden unless shown explicitly
         return edit
 
     def create_textedit(self, rect: QRect | QRectF) -> QTextEdit:
@@ -524,6 +595,7 @@ class EditionCanvas(QWidget, IComponentGraphics):
             r = r.toRect()
         edit.setGeometry(r)
         edit.setFixedSize(r.size())
+        edit.show()  # Widgets created after the canvas is shown stay hidden unless shown explicitly
         return edit
 
     def create_hypertext_edit(self, rect: QRect | QRectF) -> HyperTextEdit:
@@ -539,29 +611,55 @@ class EditionCanvas(QWidget, IComponentGraphics):
             r = r.toRect()
         edit.setGeometry(r)
         edit.fitSize()
+        edit.show()  # Widgets created after the canvas is shown stay hidden unless shown explicitly
+        return edit
+
+    def create_visual_code_edit(self, rect: QRect | QRectF) -> VisualCodeEdit:
+        """
+        Create a visual-code edit control at the specified offset relative to the anchor point.
+        See IComponentGraphics.create_visual_code_edit(rect).
+        """
+        edit = VisualCodeEdit(self, self)
+        rect = self._absolute_rect(rect)
+        edit.declared_width = rect.width()  # Remember before translating (negative extends to the right edge)
+        self._register_widget(edit, EditionCanvas.WidgetAnnotation(rect))
+        EditionCanvas.translate_rect(r := rect.__copy__(), self)
+        if isinstance(r, QRectF):
+            r = r.toRect()
+        edit.setGeometry(r)
+        edit.fitSize()
+        # Growing/shrinking edits change the height needed by the canvas contents
+        edit.layoutSpaceChanged.connect(self._update_extent)
+        if self._dirty_callback is not None:
+            edit.document().contentsChange.connect(self._dirty_callback)
+        edit.show()  # Widgets created after the canvas is shown stay hidden unless shown explicitly
         return edit
 
     def create_text(self, text: string, pos: QPoint | QPointF | QRect | QRectF, font: QFont, /) -> QLabel:
         """
-        See two overloads of the method IComponentGraphics.create_text(text, position) and
+        See three overloads of the method IComponentGraphics.create_text(text, position) and
         IComponentGraphics.create(text, rect) in the super class.
         """
-        if isinstance(pos, (QPoint, QPointF)):  # create_text(text, position)
+        if isinstance(pos, (QPoint, QPointF)):  # create_text(text, position, font)
+            assert font is not None, "Font is required"
             if isinstance(pos, QPoint):
                 pos = QPointF(pos)
             tm = TextMeasure(font, text)
             pos = QRectF(pos.x(), pos.y() + tm.ascent, tm.width, tm.height)
+        assert font is not None, "Font is required"
 
         if isinstance(pos, QRect):
             pos = QRectF(pos)
         label = QLabel(text, self)
-        pos = self._absolute_rect(pos)
+        label.setFont(font)
+        pos: QRectF = self._absolute_rect(pos)  # type: ignore
         self._register_widget(label, EditionCanvas.WidgetAnnotation(pos))
         EditionCanvas.translate_rect(r := pos.__copy__(), self)
         if isinstance(r, QRectF):
             r = r.toRect()
         label.setGeometry(r)
         label.setFixedSize(r.size())
+        label.show()  # Widgets created after the canvas is shown stay hidden unless shown explicitly
         return label
 
     def create_native_label(self, text: string, font: QFont) -> QLabel:
@@ -573,7 +671,48 @@ class EditionCanvas(QWidget, IComponentGraphics):
         label = QLabel(text, self)
         label.setFont(font)
         label.setFixedSize(ceil(tm.width), ceil(tm.height))
+        label.show()  # Widgets created after the canvas is shown stay hidden unless shown explicitly
         return label
+
+    def create_checkbox(self, text: string, font: QFont) -> QCheckBox:
+        """
+        Create a check box control.
+        See IComponentGraphics.create_checkbox(text, font).
+        """
+        box = QCheckBox(text, self)
+        box.setFont(font)
+        hint = box.sizeHint()
+        box.setFixedSize(hint.width(), hint.height())
+        box.show()  # Widgets created after the canvas is shown stay hidden unless shown explicitly
+        return box
+
+    def create_combobox(self, rect: QRect | QRectF) -> QComboBox:
+        """
+        Create a drop-down selection control at the specified offset relative to the anchor point.
+        See IComponentGraphics.create_combobox(rect).
+        """
+        box = QComboBox(self)
+        rect = self._absolute_rect(rect)
+        self._register_widget(box, EditionCanvas.WidgetAnnotation(rect))
+        EditionCanvas.translate_rect(r := rect.__copy__(), self)
+        if isinstance(r, QRectF):
+            r = r.toRect()
+        box.setGeometry(r)
+        box.setFixedSize(r.size())
+        box.show()  # Widgets created after the canvas is shown stay hidden unless shown explicitly
+        return box
+
+    def label_metric_width(self, label: QLabel, *, modify: bool = False) -> int:
+        """
+        Get the metric width of the label text.
+        See IComponentGraphics.label_metric_width()
+        """
+        tm = TextMeasure(label.font(), label.text())
+        # Advance width matches QLabel rendering; also cover trailing ink overhang
+        w = max(ceil(tm.width), ceil(tm.metrics.tightBoundingRect(label.text()).right()))
+        if modify:
+            label.setFixedWidth(w)
+        return w
 
     def move_widget(self, widget: QWidget, dx: int, dy: int) -> void:
         """
@@ -643,13 +782,17 @@ class EditionCanvas(QWidget, IComponentGraphics):
         return color
 
     @property
+    def _right_occupied(self) -> float:
+        return self.width_occupy_stack[-1] if self.width_occupy_stack else 0.
+
+    @property
     def client_rect(self) -> QRectF:
         """
         See property IComponentInterface.client_rect().
         """
         w = self.size().width() - self._current_anchor.x()
         h = self.size().height() - self._current_anchor.y()
-        return QRectF(self._current_anchor.x(), self._current_anchor.y(), w, h)
+        return QRectF(self._current_anchor.x(), self._current_anchor.y(), w - self._right_occupied, h)
 
     def delete_widget(self, widget: QWidget) -> void:
         """
@@ -658,6 +801,32 @@ class EditionCanvas(QWidget, IComponentGraphics):
         """
         del self.widgets[EditionCanvas._widget_hash(widget)]
         widget.deleteLater()
+        self._update_extent()
+
+    @final
+    def _update_extent(self) -> void:
+        """
+        Recompute the height needed to show every widget on the canvas and keep the
+        minimum height in sync: when the canvas sits inside a resizable ``QScrollArea``,
+        the area grows the canvas (showing a page scrollbar) whenever the minimum height
+        exceeds the viewport, and shrinks it back when the contents shrink.
+        """
+        bottom = 0
+        for w, a in self.widgets.values():
+            if a.rect.height() <= 0 and isinstance(w, HyperTextEdit):
+                # A fill-height edit stretches with the canvas; only its contents
+                # may push the canvas further (counting its stretched height would
+                # grow the canvas and the edit after each other without bound)
+                # noinspection PyProtectedMember
+                height = w._heightToFit()
+            else:
+                height = w.height()
+            bottom = max(bottom, w.y() + height)
+        needed = bottom + 40  # Keep some space below the last widget
+        if needed == self._content_height:
+            return
+        self._content_height = needed
+        self.setMinimumHeight(needed)
 
     def refresh(self) -> void:
         """
@@ -667,12 +836,28 @@ class EditionCanvas(QWidget, IComponentGraphics):
         self.update()
 
     def resizeEvent(self, event: QResizeEvent, /) -> void:
+        if event.size().width() <= 0 or event.size().height() <= 0:
+            # Degenerate geometry (e.g. the window is minimized): replaying the
+            # declared rectangles would collapse every widget to a zero (or
+            # negative) size and freeze their fittings; leave them as they are
+            return
         for w, a in self.widgets.values():
             rect = a.rect.__copy__()
+            auto_width = isinstance(w, VisualCodeEdit) and w.autoWidthEnabled()
+            if auto_width:
+                # The contents own the width of an auto-width edit; keep the adjusted one
+                rect.setWidth(float(w.width()))
             EditionCanvas.translate_rect(rect, self)
-            if rect != a.rect:  # Needs updating geometry
+            # Apply the geometry whenever it differs from the widget's actual one
+            # (QWidget.resize alone is a no-op when the size is unchanged)
+            if rect.toRect() != w.geometry():
                 w.setGeometry(rect.toRect())
+            if auto_width:
+                # The canvas width entered the fitting cap; recheck the fitting width
+                # noinspection PyProtectedMember
+                w._update_auto_width()
 
         # for inter in self.components:
         #     inter.paint(self, False)
         self.update()
+        self._update_extent()

@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
 
+from PySide6.QtCore import QSize, Qt
+from PySide6.QtGui import QBrush, QColor, QPainter, QPaintEvent
+from PySide6.QtWidgets import QWidget
+
 from alias import *
 from PySide6.QtWidgets import QWidget
 from PySide6.QtCore import QSize, Qt

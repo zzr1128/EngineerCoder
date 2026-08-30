@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 
-from alias import *
 from dataclasses import dataclass
+
+from alias import *
 
 
 @final
@@ -74,6 +75,8 @@ class SupportedLanguage:
     name: string
     id: string
     description: Nullable[string]
+    # Extension of generated source files (without the leading dot)
+    extension: string = 'txt'
 
     # pyrefly: ignore [bad-override]
     # noinspection method-overriding
@@ -87,7 +90,8 @@ class SupportedLanguage:
         return {
             'name': self.name,
             'id': self.id,
-            'description': self.description
+            'description': self.description,
+            'extension': self.extension
         }
 
     @classmethod
@@ -102,7 +106,10 @@ class SupportedLanguage:
         id_ = NotNull(id_)
         if description is not null:
             require_type(description, string)
-        return cls(name, id_, description)
+        # Archives predating the field keep the default extension
+        extension = data.get('extension', 'txt')
+        require_type(extension, string)
+        return cls(name, id_, description, extension)
 
     def __repr__(self) -> string:
         return f'Language<name={self.name}, id={self.id}, description={self.description}>' \

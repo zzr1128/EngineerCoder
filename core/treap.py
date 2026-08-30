@@ -167,15 +167,17 @@ class NonRotationalTreap(Generic[_NonRotTreapTy, U]):
         :param v: the specified value
         :return: the element if found, `maximum(_NonRotTreapTy)` otherwise
         """
-        if t is null:
-            return maximum(self.element_type)
-        self._push_down(t)
-        if valueof(t.value) == v:
-            return t.value
-        elif valueof(t.value) < v:
-            return self._floor(t.right, v)
-        else:
-            return self._floor(t.left, v)
+        candidate: Nullable[NonRotationalTreap._Node] = null
+        while t is not null:
+            self._push_down(t)
+            if valueof(t.value) == v:
+                return t.value
+            elif valueof(t.value) < v:
+                t = t.right
+            else:
+                candidate = t  # t.value > v: the smallest so far among those no less than v
+                t = t.left
+        return candidate.value if candidate is not null else maximum(self.element_type)
 
     def _ceil(self, t: _Node, v: U) -> Nullable[_NonRotTreapTy]:
         """
@@ -184,15 +186,17 @@ class NonRotationalTreap(Generic[_NonRotTreapTy, U]):
         :param v: the specified value
         :return: the element if found, `minimum(_NonRotTreapTy)` otherwise
         """
-        if t is null:
-            return minimum(self.element_type)
-        self._push_down(t)
-        if valueof(t.value) == v:
-            return t.value
-        elif valueof(t.value) > v:
-            return self._ceil(t.left, v)
-        else:
-            return self._ceil(t.right, v)
+        candidate: Nullable[NonRotationalTreap._Node] = null
+        while t is not null:
+            self._push_down(t)
+            if valueof(t.value) == v:
+                return t.value
+            elif valueof(t.value) > v:
+                t = t.left
+            else:
+                candidate = t  # t.value < v: the largest so far among those no greater than v
+                t = t.right
+        return candidate.value if candidate is not null else minimum(self.element_type)
 
     def insert(self, x: _NonRotTreapTy) -> void:
         """
@@ -218,29 +222,35 @@ class NonRotationalTreap(Generic[_NonRotTreapTy, U]):
         self._root = self._merge(self._merge(a1, new_a2), b)
         return True
 
-    def query(self, l: _NonRotTreapTy, r: _NonRotTreapTy) -> IEnumerable[_NonRotTreapTy]:
+    def query(self, l: _NonRotTreapTy, r: _NonRotTreapTy) -> IList[_NonRotTreapTy]:
         """
         Query all the elements in interval [l, r].
         :param l: lower bound of the interval
         :param r: upper bound of the interval
-        :return: a generator that yields the found elements
+        :return: the found elements
+
+        The result is materialized eagerly: the split-off subtrees are merged back
+        before returning, so a lazy traversal would visit a re-linked structure.
         """
         a, b = self._split(self._root, r)
         a1, a2 = self._split(a, l - self._unit)
-        res: IEnumerable[_NonRotTreapTy] = self._inorder(a2)
+        res: IList[_NonRotTreapTy] = list(self._inorder(a2))
         self._root = self._merge(self._merge(a1, a2), b)
         return res
 
-    def query_by_value(self, l: U, r: U) -> IEnumerable[_NonRotTreapTy]:
+    def query_by_value(self, l: U, r: U) -> IList[_NonRotTreapTy]:
         """
         Query all the elements in interval [valueof(l), valueof(r)].
         :param l: lower bound of the interval
         :param r: upper bound of the interval
-        :return: a generator that yields the found elements
+        :return: the found elements
+
+        The result is materialized eagerly: the split-off subtrees are merged back
+        before returning, so a lazy traversal would visit a re-linked structure.
         """
         a, b = self._split(self._root, self._ceil(self._root, r))
         a1, a2 = self._split(a, self._ceil(a, l - self._unit))
-        res: IEnumerable[_NonRotTreapTy] = self._inorder(a2)
+        res: IList[_NonRotTreapTy] = list(self._inorder(a2))
         self._root = self._merge(self._merge(a1, a2), b)
         return res
 

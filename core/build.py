@@ -2,11 +2,12 @@
 
 from dataclasses import dataclass
 from io import BufferedWriter
+from pathlib import Path
 from types import TracebackType
 
 from alias import *
+from core.localization import _
 from core.meta import SupportedLanguage
-from gettext import gettext as _
 
 
 @dataclass
@@ -19,6 +20,25 @@ class BuildConfig:
 
     target_lang: SupportedLanguage
     opt_level: OptimizationLevel = OptimizationLevel.O0
+    # Directory receiving the build artifacts; null lets the project resolve a default
+    output: Nullable[Path] = null
+
+    def __serialize__(self) -> IDictionary[string, Any]:
+        return {
+            'target_lang': serialize(self.target_lang),
+            'opt_level': self.opt_level,
+            'output': str(self.output) if self.output is not null else null,
+        }
+
+    @classmethod
+    def __deserialize__(cls, data: IDictionary[string, Any]) -> Self:
+        require_member(data, 'target_lang', 'opt_level')
+        target_lang = deserialize(SupportedLanguage, data['target_lang'])
+        opt_level = data['opt_level']
+        require_type(opt_level, int, 'opt_level')
+        output_ = data.get('output', null)
+        output = Path(output_) if isinstance(output_, string) and output_.strip() else null
+        return cls(target_lang, opt_level, output)
 
 
 class Builder:
@@ -30,6 +50,7 @@ class Builder:
     class BuildWarning(Warning):
         def __init__(self, code: 'Builder.BuildErrorCode', *texts):
             self.code: string = code.name
+            self.texts: tuple = texts  # The positional texts the message was formatted with
             self.message: string = code.message.format(*texts)
 
         def __str__(self):
@@ -38,16 +59,21 @@ class Builder:
     class BuildError(Exception):
         def __init__(self, code: 'Builder.BuildErrorCode', *texts):
             self.code: string = code.name
+            self.texts: tuple = texts  # The positional texts the message was formatted with
             self.message: string = code.message.format(*texts)
 
         def __str__(self):
             return f'{self.code}: {self.message}'
 
+    # Placeholder indices are 0-based (``str.format``); every code message may
+    # reference the positional texts the raise site supplies
     B1001 = BuildErrorCode('B1001', _('B1001'))  # Unresolved building exception.
-    B1002 = BuildErrorCode('B1002', _('B1002'))  # Invalid building configuration: {1}
-    B1003 = BuildErrorCode('B1003', _('B1003'))  # I/O exception during building: {1}
-    B1004 = BuildErrorCode('B1004', _('B1004'))  # Language "{1}" not supported by component "{2}"
-    B1005 = BuildErrorCode('B1005', _('B1005'))  # Multiple components "{2}" conflict for language "{1}"
+    B1002 = BuildErrorCode('B1002', _('B1002'))  # Invalid building configuration: {0}
+    B1003 = BuildErrorCode('B1003', _('B1003'))  # I/O exception during building: {0}
+    B1004 = BuildErrorCode('B1004', _('B1004'))  # Language "{0}" not supported by component "{1}"
+    B1005 = BuildErrorCode('B1005', _('B1005'))  # Multiple components "{1}" conflict for language "{0}"
+    B1006 = BuildErrorCode('B1006', _('B1006'))  # Static checking rejected the contents:\n{0}
+    B1007 = BuildErrorCode('B1007', _('B1007'))  # The generated code may not pass C compilation:\n{0}
 
     def __init__(self, config: BuildConfig):
         self.config = config
@@ -67,12 +93,13 @@ class Compiler(Builder):
             self.name = name
             self.file: Nullable[BufferedWriter] = null
 
-        def __enter__(self) -> void:
+        def __enter__(self) -> Self:
             try:
                 self.file = open(self.name, 'wb')
             except OSError as exc:
                 maybe_unused(exc)
                 raise Builder.BuildError(Builder.B1003, _('CPG.enter.open_fail').format(self.name))
+            return self
 
         def __exit__(self, exc_type: Nullable[typeof[BaseException]], exc_val: Nullable[BaseException],
                      exc_tb: Nullable[TracebackType]) -> null | bool:

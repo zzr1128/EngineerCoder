@@ -1,15 +1,21 @@
 # -*- coding: utf-8 -*-
 
+import importlib.util
+import sys
 from dataclasses import dataclass
 from enum import IntEnum
-import importlib.util
 from pathlib import Path
-import sys
 from types import ModuleType
 
 from alias import *
-from core.component import Component, ComponentMetadata, ComponentDelegation, ComponentTy
-from core.meta import Version, SupportedLanguage, AuthorInfo
+from core.component import (
+    Component,
+    ComponentDelegation,
+    ComponentMetadata,
+    ComponentTy,
+)
+from core.graphics import IComponentGraphics
+from core.meta import AuthorInfo, SupportedLanguage, Version
 
 
 @final
@@ -63,6 +69,10 @@ class Kit:
         self.meta = meta
         self.components: IDictionary[string, ComponentMetadata] = {}
         self.delegation_buffer: IList[typeof[ComponentDelegation]] = []
+        # Display names of the palette groups the kit organizes its components
+        # into, in display order (see ``ComponentMetadata.group``); empty keeps
+        # the palette listing the components flat
+        self.palette_groups: tuple[string, ...] = ()
 
         for comp in components:
             self.components[comp.name] = comp
@@ -105,14 +115,16 @@ class Kit:
         ...
 
     @overload
-    def register(self, delegation: typeof[ComponentDelegation[ComponentTy]], /) -> void:
+    def register(self, delegation: typeof[ComponentDelegation[ComponentTy]], /) -> typeof[ComponentDelegation[ComponentTy]]:
         """
         Register a component delegation to a kit, store it in the buffer and waiting for flushing.
         :param delegation: delegation to store
+        :return: the delegation type itself
         """
         ...
 
-    def register(self, component: ComponentMetadata | typeof[Component] | typeof[ComponentDelegation[ComponentTy]], /) -> void | typeof[Component]:
+    def register(self, component: ComponentMetadata | typeof[Component] | typeof[ComponentDelegation[ComponentTy]], /) \
+            -> void | typeof[Component] | typeof[ComponentDelegation[ComponentTy]]:
         if isinstance(component, ComponentMetadata):
             if component.name in self.components:
                 raise Kit.ComponentExistsError(self.meta.name, component.name)
@@ -122,7 +134,7 @@ class Kit:
             # noinspection bad-argument-type
             if issubclass(component, ComponentDelegation):
                 self.delegation_buffer.append(component)
-                return None
+                return component
             elif issubclass(component, Component):
                 self.register(component.meta())
                 return component
@@ -156,6 +168,17 @@ class Kit:
         if name not in self.components:
             raise Kit.ComponentNotFoundError(self.meta.name, name)
         del self.components[name]
+
+    @property
+    def directory(self) -> Nullable[Path]:
+        """Filesystem directory of the kit package (the home of kit-local
+        resources such as palette icons); null for kits that were not imported
+        from a package (see ``create_empty``)."""
+        if self.module_key is null:
+            return null
+        module = sys.modules.get(self.module_key, null)
+        file = getattr(module, '__file__', null) if module is not null else null
+        return Path(file).parent if file else null
 
     @staticmethod
     def create_empty(meta: KitMetadata) -> 'Kit':
@@ -236,6 +259,14 @@ class KitManager:
             cls._instance = super().__new__(cls)
         return cls._instance
 
+    @classmethod
+    def instance(cls) -> Self:
+        # Do NOT call cls() when the instance already exists: __init__ would run
+        # again and wipe the registered kits (same convention as Environment.instance)
+        if cls._instance is null:
+            return cls()
+        return cls._instance
+
     class KitNotFoundError(LookupError):
         def __init__(self, kit_name: string):
             self.kit_name = kit_name
@@ -253,6 +284,35 @@ class KitManager:
     def __init__(self):
         self._kits: IDictionary[string, Kit] = {}
         self.modules: IDictionary[string, ModuleType] = {}
+        # Keyword -> complete component name; contributed by kits so their components
+        # take part in the code completion of visual code edits (see
+        # ``VisualCodeEdit.add_completion``); the level filter still applies
+        self.completions: IDictionary[string, string] = {}
+        # Keyword -> complete component name of the context-gated components:
+        # they complete inside matching contexts only (never through this
+        # registry), but the palette lists them as draggable entries nonetheless
+        self.context_completions: IDictionary[string, string] = {}
+
+    def add_completion(self, keyword: string, component_name: string) -> void:
+        """
+        Register a completion keyword for a component of an imported kit.
+        :param keyword: keyword that triggers the completion (e.g. 'adjust')
+        :param component_name: complete name of the component (in format 'kit.component')
+
+        Visual code edits absorb the registry automatically, so the registration
+        may happen at any time relative to the edit construction.
+        """
+        self.completions[keyword] = component_name
+
+    def add_context_completion(self, keyword: string, component_name: string) -> void:
+        """
+        Record the insertion keyword of a context-gated component: the analyzer
+        decides where it completes (never this registry), but the component
+        palette reads the registry to list the component as a draggable entry.
+        :param keyword: keyword that inserts the component inside matching contexts
+        :param component_name: complete name of the component (in format 'kit.component')
+        """
+        self.context_completions.setdefault(component_name, keyword)
 
     def __iter__(self) -> IEnumerator[Kit]:
         return iter(self._kits.values())
@@ -294,6 +354,21 @@ class KitManager:
 
     def __len__(self) -> int:
         return len(self._kits)
+
+    def available_kits(self) -> IList[IDictionary[string, string]]:
+        """
+        Enumerate the metadata of every registered kit.
+        :return: a list of dictionaries carrying the 'name', 'display_name'
+            and 'description' of each kit, in registration order
+        """
+        return [
+            {
+                'name': kit.meta.name,
+                'display_name': kit.meta.display_name,
+                'description': kit.meta.description,
+            }
+            for kit in self._kits.values()
+        ]
 
     class InvalidComponentNameError(Exception):
         pass
@@ -351,6 +426,18 @@ class KitManager:
         kit_name, component_name = KitManager.split_name(name)
         return self[kit_name][component_name]
 
+    def full_name(self, component: Component) -> string:
+        """
+        Inverse of ``lookup``: resolve the complete name of a registered component.
+        :param component: a component registered in some imported kit
+        :return: the complete name (in format 'kit.component') of the component
+        :raise LookupError: raise when the component does not belong to any imported kit
+        """
+        for kit in self:
+            if component.meta().name in kit.components:
+                return KitManager.merge_names(kit.meta.name, component.meta().name)
+        raise LookupError(f'Component {component.meta().name} does not belong to any imported kit')
+
     def _resolve_delegation(self, delegation: typeof[ComponentDelegation[ComponentTy]]) -> void:
         """
         Resolve a component delegation and register it to its target component.
@@ -365,43 +452,53 @@ class KitManager:
 
     def flush_delegations(self) -> void:
         """
-        Flush all unresolved delegations and register them to their target components.
+        Flush all pending delegations whose delegated components are already registered,
+        registering them to their target components.
 
-        Prior to flushing, delegations are invisible in building, etc.
+        Delegations whose targets have not been imported yet remain in the buffer and
+        are retried on the next flush, so the kit importation order does not matter.
+        Prior to being resolved, delegations are invisible in building, etc.
         """
         for kit in self._kits.values():
+            pending: IList[typeof[ComponentDelegation]] = []
             for delegation in kit.delegation_buffer:
-                self._resolve_delegation(delegation)
-            kit.delegation_buffer.clear()
-
+                try:
+                    self._resolve_delegation(delegation)
+                except LookupError:
+                    pending.append(delegation)  # The delegated kit/component is not imported yet
+            kit.delegation_buffer = pending
 
     @overload
-    def create_component(self, parent: Nullable[Component], name: string, /) -> Component:
+    def create_component(self, parent: Nullable[Component], graphics: IComponentGraphics, name: string, /) -> Component:
         """
         Create a component by name.
         :param parent: the parent component
+        :param graphics: graphics interface of the canvas the component belongs to
         :param name: complete name of the component
         :return: the component object
         """
         ...
 
     @overload
-    def create_component(self, parent: Nullable[Component], meta: ComponentMetadata, /) -> Component:
+    def create_component(self, parent: Nullable[Component], graphics: IComponentGraphics,
+                         meta: ComponentMetadata, /) -> Component:
         """
         Create a component by metadata.
         :param parent: the parent component
+        :param graphics: graphics interface of the canvas the component belongs to
         :param meta: metadata of the component
         :return: the component object
         """
         ...
 
-    def create_component(self, parent: Nullable[Component], name_or_meta: string | ComponentMetadata, /) -> Component:
+    def create_component(self, parent: Nullable[Component], graphics: IComponentGraphics,
+                         name_or_meta: string | ComponentMetadata, /) -> Component:
         if isinstance(name_or_meta, string):
             meta = self.lookup(name_or_meta)
         else:
             meta = name_or_meta
         # noinspection unresolved-references
-        component = meta.component_type(parent)
+        component = meta.component_type(parent, graphics)
         return component
 
     class KitInternalError(Exception):
@@ -496,6 +593,9 @@ class KitManager:
 
         self.register(kit)
         kit.module_key = module_name
+        # Delegations buffered in the imported kit (or in kits depending on it) may be
+        # resolvable now; retry them so the kit importation order does not matter
+        self.flush_delegations()
         return kit
 
     def __repr__(self) -> string:
