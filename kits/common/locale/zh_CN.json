@@ -1,4 +1,6 @@
 {
+    "clk_display_name": "公共语言组件",
+    "clk_description": "公共语言组件库套件。",
     "display_name": "如果",
     "description": "当条件满足时执行。",
     "label_if": "如果",

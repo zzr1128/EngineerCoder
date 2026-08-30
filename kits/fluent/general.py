@@ -668,7 +668,8 @@ class CInit(CFluentMacro):
 @fluent.register
 @Component.use__interface
 @ComponentMetadata.create('execute_at_end', _('execute_at_end_display_name'), _('execute_at_end_description'), [UDF],
-                          level=ComponentMetadata.Level.Domain)
+                          level=ComponentMetadata.Level.Domain,
+                          icon='end.svg')
 class CExecuteAtEnd(CFluentMacro):
     """``DEFINE_EXECUTE_AT_END(name)``: UDF called after the calculation
     (or each time step) completes; it takes no parameters."""

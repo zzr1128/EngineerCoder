@@ -10,7 +10,9 @@ from PySide6.QtWidgets import *
 from alias import *
 from alias import Nullable
 from core.build import Builder
+from core.component import ComponentMetadata
 from core.environment import Environment
+from core.kit import Kit, KitManager
 from core.localization import _, set_language
 from core.meta import SupportedLanguage
 from core.project import Project
@@ -19,6 +21,7 @@ from core.script import Script
 from core.theme import Theme
 from interface.component_palette import ComponentPalette
 from interface.edition_canvas import EditionCanvas
+from interface.new_project_dialog import NewProjectDialog
 from interface.preferences_dialog import PreferencesDialog
 from interface.project_properties_dialog import ProjectPropertiesDialog
 from interface.ui_style_editor import Ui_EditorWindow
@@ -545,6 +548,7 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
         self.env.import_kit(r'kits/fluent')  # UDF delegations for the CLK components
         self._setup_component_palette()
         project = Project(_('ui.project.default_name'), UDF)
+        project.required_kits = [kit for kit in self.env.kit_manager]
         self.env.project = project
         self._current_script = null
         self._script_handlers.clear()
@@ -557,6 +561,9 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
         canvas.add_interface(script.tu.interface)
         self._script_handlers[tab] = script
         self._current_script = script
+        # A fresh blank project carries no user change yet: it starts clean
+        # (like a project right after loading, see ``open_project``)
+        project.clear_dirty()
         self._update_title()
         self._dirty_timer = QTimer(self)
         self._dirty_timer.timeout.connect(self._sync_dirty_title)
@@ -570,33 +577,63 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
         self.lineEdit_component.textChanged.connect(self.component_palette.apply_filter)
 
     def new_project(self) -> void:
-        """Create a new blank project, prompting to save the current one if dirty."""
+        """Create a new blank project: asks to save the current one if dirty,
+        then opens the new-project dialog where the user chooses the name, the
+        kits in use (with their dependencies and languages) and the target
+        language."""
         if self.env.project is not null and self.env.project.is_dirty:
             reply = QMessageBox.question(
                 self, _('ui.dialog.unsaved_title'),
                 _('ui.dialog.unsaved_new'),
                 QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel)
             if reply == QMessageBox.StandardButton.Save:
-                self.save_project()
-            elif reply == QMessageBox.StandardButton.Cancel:
+                if not self.save_project():
+                    return  # Saving aborted: keep the current project
+            elif reply != QMessageBox.StandardButton.Discard:
                 return
+        dlg = NewProjectDialog(self.env.kit_manager, _('ui.project.default_name'), self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
         for handler in list(self.tabs.keys()):
             self.tabWidget_editor.removeTab(0)
         self.tabs.clear()
         self._script_handlers.clear()
-        project = Project(_('ui.project.default_name'), UDF)
+        project = Project(dlg.project_name(), dlg.target_language())
+        project.required_kits = dlg.selected_kits()
         self.env.project = project
         self._current_script = null
-        tab = self.create_canvas(_('ui.script.default_name'))
-        canvas = self.canvas(tab)
-        script = project.create_script(
-            _('ui.script.default_name'), 'fluent.translation_unit',
-            self.env.kit_manager, canvas)
-        self._connect_canvas_dirty(canvas, script)
-        canvas.add_interface(script.tu.interface)
-        self._script_handlers[tab] = script
-        self._current_script = script
+        root = self._find_root_component(project.required_kits, project.target_lang)
+        if root is not null:
+            tab = self.create_canvas(_('ui.script.default_name'))
+            canvas = self.canvas(tab)
+            script = project.create_script(
+                _('ui.script.default_name'), root,
+                self.env.kit_manager, canvas)
+            self._connect_canvas_dirty(canvas, script)
+            canvas.add_interface(script.tu.interface)
+            self._script_handlers[tab] = script
+            self._current_script = script
+        # The fresh project carries no user change yet: it starts clean
+        project.clear_dirty()
         self._update_title()
+
+    def _find_root_component(self, kits: IEnumerable[Kit],
+                             lang: SupportedLanguage) -> Nullable[string]:
+        """The script root a fresh project starts with among the given kits:
+        prefers a Domain-level component natively supporting the language,
+        then one supporting it through a delegation; null when no kit serves
+        the language (the project then starts without a script)."""
+        fallback: Nullable[string] = null
+        for kit in kits:
+            for meta in kit:
+                if meta.level != ComponentMetadata.Level.Domain:
+                    continue
+                full_name = KitManager.merge_names(kit.meta.name, meta.name)
+                if lang in meta.languages:
+                    return full_name
+                if fallback is null and meta.delegations.valid(lang) == ComponentMetadata.Delegation.VALID:
+                    fallback = full_name
+        return fallback
 
     def open_project(self) -> void:
         """Open an existing .ecproj project file, replacing the current project."""
@@ -606,8 +643,9 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
                 _('ui.dialog.unsaved_open'),
                 QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel)
             if reply == QMessageBox.StandardButton.Save:
-                self.save_project()
-            elif reply == QMessageBox.StandardButton.Cancel:
+                if not self.save_project():
+                    return  # Saving aborted: keep the current project
+            elif reply != QMessageBox.StandardButton.Discard:
                 return
         path, _filter = QFileDialog.getOpenFileName(
             self, _('ui.dialog.open_project'), '',
@@ -645,45 +683,49 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
         project.clear_dirty()
         self._update_title()
 
-    def save_project(self) -> void:
+    def save_project(self) -> bool:
         """Save the project: every unsaved tab asks whether it should be saved
         (saving a script without a path opens the file dialog first); the
         project archive is written afterwards. The archive itself goes through
-        Save As while the project has no path yet."""
+        Save As while the project has no path yet.
+        :return: whether the project ended up saved; ``False`` means the user
+            canceled somewhere (or the write failed) and the caller must keep
+            the current state"""
         if self.env.project is null:
-            return
+            return False
         if self.env.project.path is null:
-            self.save_project_as()
-            return
+            return self.save_project_as()
         if not self._name_untitled_scripts():
-            return  # The user canceled the naming: the save aborts
+            return False  # The user canceled the naming: the save aborts
         skipped = self._confirm_script_saves()
         if skipped is null:
-            return  # The user canceled the whole save
+            return False  # The user canceled the whole save
         try:
             self.env.project.save(self.env.project.path)
         except Exception as e:
             QMessageBox.critical(self, _('ui.dialog.save_failed'), str(e))
-            return
+            return False
         # The archive persisted the skipped scripts too, but their changes were
         # deliberately not saved: keep them dirty so the state stays honest
         for script in skipped:
             script.mark_dirty()
         self._update_title()
+        return True
 
-    def save_project_as(self) -> void:
-        """Save the project to a user-chosen .ecproj file path."""
+    def save_project_as(self) -> bool:
+        """Save the project to a user-chosen .ecproj file path.
+        :return: whether the project ended up saved (see ``save_project``)"""
         if self.env.project is null:
-            return
+            return False
         path, _filter = QFileDialog.getSaveFileName(
             self, _('ui.dialog.save_as'), '',
             _('ui.dialog.ecproj_filter'))
         if not path:
-            return
+            return False
         if not path.endswith(Project.Extension):
             path += Project.Extension
         self.env.project.path = path
-        self.save_project()
+        return self.save_project()
 
     def add_script(self, name: Nullable[string] = null) -> void:
         """Add a new script to the project with a translation unit root component.
@@ -968,13 +1010,33 @@ class EditorWindow(QMainWindow, Ui_EditorWindow):
                     _('ui.dialog.unsaved_close'),
                     QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel)
                 if reply == QMessageBox.StandardButton.Save:
-                    self.save_project()
-                elif reply == QMessageBox.StandardButton.Cancel:
+                    if not self.save_project():
+                        return  # Saving aborted: keep the tab open
+                elif reply != QMessageBox.StandardButton.Discard:
                     return
             if handler is not null and handler in self._script_handlers:
                 del self._script_handlers[handler]
             self.remove_canvas(canvas)
         self.tabWidget_editor.removeTab(index)
+
+    def closeEvent(self, event: QCloseEvent) -> void:
+        """On exit, publish one save/discard/cancel dialog when the project
+        still carries unsaved changes: canceling (or dismissing the dialog)
+        keeps the window open, saving aborts the exit when the user backs out
+        of the save itself."""
+        if self.env.project is not null and self.env.project.is_dirty:
+            reply = QMessageBox.question(
+                self, _('ui.dialog.unsaved_title'),
+                _('ui.dialog.unsaved_exit').format(self.env.project.name),
+                QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel)
+            if reply == QMessageBox.StandardButton.Save:
+                if not self.save_project():
+                    event.ignore()  # Saving aborted: stay open
+                    return
+            elif reply != QMessageBox.StandardButton.Discard:
+                event.ignore()  # Cancel (or Escape): stay open
+                return
+        super().closeEvent(event)
 
     def setup(self) -> void:
         # Setup graphic properties

@@ -1,4 +1,6 @@
 {
+    "clk_display_name": "Common Language Kit",
+    "clk_description": "Kit of common language components and libraries.",
     "display_name": "if",
     "description": "Execute when condition is met.",
     "label_if": "if",

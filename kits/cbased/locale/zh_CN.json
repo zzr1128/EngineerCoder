@@ -1,4 +1,6 @@
 {
+    "display_name": "C系语言套件",
+    "description": "为基于C的组件的C系语言支持，提供标识符级静态检查和自由C源代码支持，根据项目选择的C标准进行检查，并使用捆绑的clang工具链进行支持。",
     "identifier_empty": "标识符不能为空",
     "identifier_invalid": "\"{0}\"不是合法的C标识符：只能由字母、数字和下划线组成，且不能以数字开头",
     "identifier_keyword": "\"{0}\"是{1}标准的关键字，不能用作标识符",

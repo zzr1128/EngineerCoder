@@ -1,4 +1,6 @@
 {
+    "display_name": "C-Based Kit",
+    "description": "C-series language support shared by C-based kits, providing static checking of identifiers and free C source against the C standard the project selects, backed by the bundled clang toolchain when it is available.",
     "identifier_empty": "The identifier must not be empty",
     "identifier_invalid": "\"{0}\" is not a valid C identifier: only letters, digits and underscores are allowed, and it must not start with a digit",
     "identifier_keyword": "\"{0}\" is a keyword of the {1} standard and cannot be used as an identifier",

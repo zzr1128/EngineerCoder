@@ -1,4 +1,6 @@
 {
+    "display_name": "Ansys Fluent Kit",
+    "description": "Visual development kit for Ansys Fluent UDF and its derivatives (e.g. UDM).",
     "adjust_display_name": "adjust",
     "adjust_description": "DEFINE_ADJUST: be called by Fluent at the end of every iteration.",
     "init_display_name": "init",
